@@ -42,8 +42,6 @@
 #' Only named *or* unnamed groups will currently be captured, not both. If
 #' there are named groups in the pattern, then unnamed groups will be ignored.
 #' 
-#' There is currently a hard-coded limit of 128 matches captured per string.
-#' 
 #' @examples
 #' # Pick out pairs of consecutive word characters
 #' match <- ore.search("(\\w)(\\w)", "This is a test", all=TRUE)
@@ -62,10 +60,8 @@ ore.search <- function (regex, text, all = FALSE, start = 1L, simplify = TRUE)
 {
     if (!is.character(text))
         text <- as.character(text)
-    if (!is.ore(regex))
-        regex <- ore(regex, encoding=.getEncoding(text))
     
-    match <- .Call("ore_search_all", attr(regex,".compiled"), text, as.logical(all), as.integer(start), as.logical(simplify), attr(regex,"groupNames"), PACKAGE="ore")
+    match <- .Call("ore_search_all", regex, text, as.logical(all), as.integer(start), as.logical(simplify), PACKAGE="ore")
     
     .Workspace$lastMatch <- match
     return (match)
@@ -227,8 +223,8 @@ ore.lastmatch <- function ()
 #' 
 #' The \code{\%~\%} infix shorthand corresponds to \code{ore.ismatch(..., 
 #' all=FALSE)}, while \code{\%~~\%} corresponds to \code{ore.ismatch(...,
-#' all=TRUE)}. Either way, the first argument can an \code{"ore"} object, in
-#' which case the second is the text to search, or a character vector, in
+#' all=TRUE)}. Either way, the first argument can be an \code{"ore"} object,
+#' in which case the second is the text to search, or a character vector, in
 #' which case the second argument is assumed to contain the regex.
 #' 
 #' @param regex A single character string or object of class \code{"ore"}.
@@ -296,23 +292,10 @@ ore.ismatch <- function (regex, text, all = FALSE)
 #' @export
 ore.split <- function (regex, text, start = 1L, simplify = TRUE)
 {
-    sourceEncoding <- .getEncoding(text)
-    match <- ore.search(regex, text, all=TRUE, start=start, simplify=FALSE)
-    result <- lapply(seq_along(text), function(i) {
-        if (match[[i]]$nMatches == 0)
-            return (text[i])
-        else
-        {
-            parts <- .Call("ore_split", text[i], match[[i]]$nMatches, match[[i]]$byteOffsets, match[[i]]$byteLengths, PACKAGE="ore")
-            Encoding(parts) <- sourceEncoding
-            return (parts)
-        }
-    })
+    if (!is.character(text))
+        text <- as.character(text)
     
-    if (simplify && length(result) == 1)
-        return (result[[1]])
-    else
-        return (result)
+    return (.Call("ore_split", regex, text, as.integer(start), as.logical(simplify), PACKAGE="ore"))
 }
 
 #' Replace matched substrings with new text
@@ -338,51 +321,12 @@ ore.split <- function (regex, text, start = 1L, simplify = TRUE)
 #' ore.subst("\\d+", function(i) as.numeric(i)^2, "2 dogs")
 #' @seealso \code{\link{ore.search}}
 #' @export
-ore.subst <- function (regex, replacement, text, all = FALSE, ...)
+ore.subst <- function (regex, replacement, text, ..., all = FALSE)
 {
-    do.subst <- function (match, replacement, text)
-    {
-        result <- .Call("ore_substitute", text, match$nMatches, match$byteOffsets, match$byteLengths, as.character(replacement), PACKAGE="ore")
-        return (result)
-    }
-    
-    if (is.character(replacement))
-    {
-        if (!exists("groupNumberRegex", .Workspace))
-        {
-            .Workspace$groupNumberRegex <- ore("\\\\(\\d+)")
-            .Workspace$groupNameRegex <- ore("\\\\\\k\\<(\\w+)\\>")
-        }
-        groupNumberMatch <- ore.search(.Workspace$groupNumberRegex, replacement, all=TRUE)
-        groupNameMatch <- ore.search(.Workspace$groupNameRegex, replacement, all=TRUE)
-    }
-    else
+    if (!is.character(text))
+        text <- as.character(text)
+    if (!is.character(replacement))
         replacement <- match.fun(replacement)
-    
-    result <- character(length(text))
-    for (i in seq_along(text))
-    {
-        currentMatch <- ore.search(regex, text[i], all=all)
-        if (is.null(currentMatch))
-            result[i] <- text[i]
-        else
-        {
-            if (is.function(replacement))
-                currentReplacements <- replacement(currentMatch$matches, ...)
-            else
-            {
-                currentReplacements <- rep(replacement, length.out=currentMatch$nMatches)
-                if (!is.null(groupNumberMatch))
-                    currentReplacements <- apply(currentMatch$groups$matches[,as.integer(groupNumberMatch$groups$matches),drop=FALSE], 1, function(x) do.subst(groupNumberMatch,x,replacement))
-                if (!is.null(groupNameMatch))
-                    currentReplacements <- apply(currentMatch$groups$matches[,groupNameMatch$groups$matches,drop=FALSE], 1, function(x) do.subst(groupNameMatch,x,replacement))
-            }
-            
-            result[i] <- do.subst(currentMatch, currentReplacements, text[i])
-        }
-    }
-    
-    names(result) <- NULL
-    Encoding(result) <- .getEncoding(text)
-    return (result)
+        
+    return (.Call("ore_substitute_all", regex, replacement, text, as.logical(all), new.env(), pairlist(...), PACKAGE="ore"))
 }
