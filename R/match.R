@@ -1,11 +1,8 @@
-.Workspace <- new.env()
-
 #' Search for matches to a regular expression
 #' 
 #' Search a character vector for one or more matches to an Oniguruma-compatible
 #' regular expression. The result is of class \code{"orematch"}, for which
-#' printing and indexing methods are available. The \code{\link{print}} method
-#' uses the \code{crayon} package, if it is available.
+#' printing and indexing methods are available.
 #' 
 #' @param regex A single character string or object of class \code{"ore"}. In
 #'   the former case, this will first be passed through \code{\link{ore}}.
@@ -21,6 +18,15 @@
 #' @param x An R object.
 #' @param i For indexing into an \code{"orematch"} object, the match number.
 #' @param j For indexing into an \code{"orematch"} object, the group number.
+#' @param lines The maximum number of lines to print. If \code{NULL}, this
+#'   defaults to the value of the \code{"ore.lines"} option, or 0 if that is
+#'   unset or invalid. Zero means no limit.
+#' @param context The number of characters of context to include either side
+#'   of each match. If \code{NULL}, this defaults to the value of the
+#'   \code{"ore.context"} option, or 30 if that is unset or invalid.
+#' @param width The number of characters in each line of printed output. If
+#'   \code{NULL}, this defaults to the value of the standard \code{"width"}
+#'   option.
 #' @param ... Ignored.
 #' @return For \code{ore.search}, an \code{"orematch"} object, or a list of
 #'   the same, each with elements
@@ -41,6 +47,11 @@
 #' @note
 #' Only named *or* unnamed groups will currently be captured, not both. If
 #' there are named groups in the pattern, then unnamed groups will be ignored.
+#' 
+#' By default the \code{print} method uses the \code{crayon} package (if it is
+#' available) to determine whether or not the R terminal supports colour.
+#' Alternatively, colour printing may be forced or disabled by setting the
+#' \code{"ore.colour"} (or \code{"ore.color"}) option to a logical value.
 #' 
 #' @examples
 #' # Pick out pairs of consecutive word characters
@@ -86,48 +97,40 @@ is.orematch <- function (x)
 
 #' @rdname ore.search
 #' @export
-print.orematch <- function (x, ...)
+print.orematch <- function (x, lines = NULL, context = NULL, width = NULL, ...)
 {
+    # Generally x$nMatches should not be zero (because non-matches return NULL), but cover it anyway
     if (x$nMatches == 0)
-        cat(paste(text, "\n", sep=""))
+        cat("<no match>\n")
     else
     {
-        # Is the "crayon" package available, and does the terminal support colour?
-        usingColour <- (system.file(package="crayon") != "" && crayon::has_color())
-        
-        context <- "context: "
-        matches <- "  match: "
-        numbers <- " number: "
-        
-        if (usingColour)
+        getOptionWithDefault <- function (value, name, default)
         {
-            colouredText <- .Call("ore_substitute", x$text, x$nMatches, x$byteOffsets, x$byteLengths, crayon::cyan(x$matches), PACKAGE="ore")
-            matches <- paste0(matches, colouredText)
+            if (is.numeric(value))
+                return (as.integer(value))
+            else if (is.numeric(getOption(name)))
+                return (as.integer(getOption(name)))
+            else
+                return (as.integer(default))
         }
         
-        ends <- c(1, x$offsets+x$lengths)
-        for (i in 1:x$nMatches)
-        {
-            leadingSpace <- paste(rep(" ",x$offsets[i]-ends[i]), collapse="")
-            
-            if (!usingColour)
-            {
-                context <- paste0(context, substr(x$text,ends[i],x$offsets[i]-1), paste(rep(" ",x$lengths[i]),collapse=""))
-                matches <- paste0(matches, leadingSpace, x$matches[i])
-            }
-            
-            # NB: this could break for matches with numbers > 9 whose length is 1
-            if (x$nMatches > 1)
-                numbers <- paste0(numbers, leadingSpace, i, paste(rep("=",x$lengths[i]-nchar(as.character(i))),collapse=""))
-        }
-        context <- paste0(context, substr(x$text,ends[length(ends)],nchar(x$text)))
+        # Check the colour option; if unset, use the crayon package to check if the terminal supports colour
+        if (!is.null(getOption("ore.colour")))
+            usingColour <- isTRUE(getOption("ore.colour"))
+        else if (!is.null(getOption("ore.color")))
+            usingColour <- isTRUE(getOption("ore.color"))
+        else
+            usingColour <- (system.file(package="crayon") != "" && crayon::has_color())
         
-        cat(paste0(matches, "\n"))
-        if (!usingColour)
-            cat(paste0(context, "\n"))
-        if (x$nMatches > 1)
-            cat(paste0(numbers, "\n"))
+        # Other printing options
+        lines <- getOptionWithDefault(lines, "ore.lines", 0L)
+        context <- getOptionWithDefault(context, "ore.context", 30L)
+        width <- getOptionWithDefault(width, "width", 80L)
+        
+        .Call("ore_print_match", x, context, width, lines, usingColour, PACKAGE="ore")
     }
+    
+    invisible(NULL)
 }
 
 #' Extract matching substrings
@@ -189,6 +192,13 @@ groups.list <- function (object, ...)
 groups.orematch <- function (object, ...)
 {
     return (object$groups$matches)
+}
+
+#' @rdname matches
+#' @export
+groups.orearg <- function (object, ...)
+{
+    return (attr(object, "groups"))
 }
 
 #' @rdname matches
@@ -303,6 +313,14 @@ ore.split <- function (regex, text, start = 1L, simplify = TRUE)
 #' This function substitutes new text into strings in regions that match a
 #' regular expression. The substitutions may be simple text, may include
 #' references to matched subgroups, or may be created by an R function.
+#' 
+#' If \code{replacement} is a function, then it will be passed as its first
+#' argument an object of class \code{"orearg"}. This is a character vector
+#' containing as its elements the matched substrings, and with an attribute
+#' containing the matches for parenthesised subgroups, if there are any. A
+#' \code{\link{groups}} method is available for this class, so the groups
+#' attribute can be easily obtained that way. The substitution function will be
+#' called once per element of \code{text}.
 #' 
 #' @inheritParams ore.search
 #' @param replacement A single character string, or a function to be applied
