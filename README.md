@@ -1,5 +1,7 @@
 # Oniguruma Regular Expressions (for R)
 
+**NB: If you are looking for [Oracle R Enterprise](http://www.oracle.com/technetwork/database/database-technologies/r/r-enterprise/overview/index.html), please note you're in the wrong place!**
+
 Welcome to the `ore` package for R. This package provides an alternative to R's standard functions for manipulating strings with regular expressions, based on the Oniguruma regular expression library (rather than PCRE, as in `base`). Although the regex features of the two libraries are quite similar, the R interface provided by `ore` has some notable advantages:
 
 - Regular expressions are themselves first-class objects (of class `ore`), stored with attributes containing information such as the number of parenthesised groups present within them. This means that it is not necessary to compile a particular regex more than once.
@@ -24,6 +26,7 @@ If you prefer the more verbose but also more friendly approach to creating regul
 - [Function mapping](#function-mapping)
 - [Basic usage](#basic-usage)
 - [Encodings](#encodings)
+- [Alternative syntaxes](#alternative-syntaxes)
 - [Substitutions](#substitutions)
 - [Splitting](#splitting)
 - [The pattern dictionary](#the-pattern-dictionary)
@@ -164,6 +167,24 @@ gregexpr("\\b\\w{4}\\b", text, perl=TRUE)
 # [1] 4
 ```
 
+## Alternative syntaxes
+
+By default, Oniguruma and `ore` use Ruby's regular expression syntax, which is very similar to Perl's (and hence that of base R with `perl=TRUE`). However, the library does support alternative syntaxes, and `ore` currently also allows for literal string matching, which is equivalent to `fixed=TRUE` in base R.
+
+Notice the difference in interpretation of a period in the following example:
+
+```R
+ore.search(ore("."), "1.7")
+#   match: 1  
+# context:  .7
+
+ore.search(ore(".",syntax="fixed"), "1.7")
+#   match:  . 
+# context: 1 7
+```
+
+In the first case the period has the usual regular expression interpretation of "any character", so it matches the first available character, the 1. In the second case the period has no special meaning, and it only matches a literal period in the search string.
+
 ## Substitutions
 
 The `ore.subst()` function can be used to substitute regex matches with new text. Matched subgroups may be referred to using numerical or named back-references.
@@ -196,6 +217,8 @@ Strings can be split into parts using the `ore.split()` function.
 ore.split("-?\\d+", "I have 2 dogs, 3 cats and 4 hamsters")
 # [1] "I have "    " dogs, "    " cats and " " hamsters"
 ```
+
+This finds all matches to the pattern, discards them, and then returns the remaining pieces of the original string.
 
 ## The pattern dictionary
 
