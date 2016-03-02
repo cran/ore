@@ -1,8 +1,8 @@
+#include <string.h>
+
 #include <R.h>
 #include <Rdefines.h>
 #include <Rinternals.h>
-
-#include <string.h>
 
 #include "compile.h"
 #include "match.h"
@@ -78,8 +78,8 @@ SEXP ore_substitute_substrings (SEXP text_, SEXP n_matches_, SEXP offsets_, SEXP
 backref_info_t * ore_find_backrefs (const char *replacement, SEXP group_names)
 {
     // Match against global regexes for each type of back-reference
-    rawmatch_t *group_number_match = ore_search(group_number_regex, replacement, TRUE, 0);
-    rawmatch_t *group_name_match = ore_search(group_name_regex, replacement, TRUE, 0);
+    rawmatch_t *group_number_match = ore_search(group_number_regex, replacement, NULL, TRUE, 0);
+    rawmatch_t *group_name_match = ore_search(group_name_regex, replacement, NULL, TRUE, 0);
     
     // If there is no back-reference, return
     if (group_number_match == NULL && group_name_match == NULL)
@@ -153,7 +153,7 @@ SEXP ore_substitute_all (SEXP regex_, SEXP replacement_, SEXP text_, SEXP all_, 
         error("The specified regex object is not valid");
     
     // Convert R objects to C types
-    regex_t *regex = (regex_t *) ore_retrieve(regex_, text_);
+    regex_t *regex = (regex_t *) ore_retrieve(regex_, text_, FALSE);
     SEXP group_names = getAttrib(regex_, install("groupNames"));
     const Rboolean all = asLogical(all_) == TRUE;
     
@@ -191,7 +191,7 @@ SEXP ore_substitute_all (SEXP regex_, SEXP replacement_, SEXP text_, SEXP all_, 
         const char *text = CHAR(STRING_ELT(text_, i));
         
         // Do the match
-        rawmatch_t *raw_match = ore_search(regex, text, all, 0);
+        rawmatch_t *raw_match = ore_search(regex, text, NULL, all, 0);
         
         // If there's no match the return value is the original string
         if (raw_match == NULL)
@@ -205,13 +205,13 @@ SEXP ore_substitute_all (SEXP regex_, SEXP replacement_, SEXP text_, SEXP all_, 
             {
                 // Create an R character vector containing the matches
                 SEXP matches = PROTECT(NEW_CHARACTER(raw_match->n_matches));
-                ore_char_vector(matches, (const char **) raw_match->matches, raw_match->n_regions, raw_match->n_matches, encoding);
+                ore_char_vector(matches, (const char **) raw_match->matches, raw_match->n_regions, raw_match->n_matches, encoding, NULL);
                 
                 // If there are groups, extract them and put them in an attribute
                 if (raw_match->n_regions > 1)
                 {
                     SEXP group_matches = PROTECT(allocMatrix(STRSXP, raw_match->n_matches, raw_match->n_regions-1));
-                    ore_char_matrix(group_matches, (const char **) raw_match->matches, raw_match->n_regions, raw_match->n_matches, group_names, encoding);
+                    ore_char_matrix(group_matches, (const char **) raw_match->matches, raw_match->n_regions, raw_match->n_matches, group_names, encoding, NULL);
                     setAttrib(matches, install("groups"), group_matches);
                     UNPROTECT(1);
                 }
