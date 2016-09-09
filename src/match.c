@@ -364,8 +364,6 @@ SEXP ore_search_all (SEXP regex_, SEXP text_, SEXP all_, SEXP start_, SEXP simpl
     const int start_len = length(start_);
     
     // Check for sensible input
-    if (text_len < 1)
-        error("The text vector is empty");
     if (start_len < 1)
         error("The vector of starting positions is empty");
     
@@ -519,5 +517,8 @@ SEXP ore_search_all (SEXP regex_, SEXP text_, SEXP all_, SEXP start_, SEXP simpl
     if (simplify && text_len == 1)
         return VECTOR_ELT(results, 0);
     else
+    {
+        setAttrib(results, R_ClassSymbol, mkString("orematches"));
         return results;
+    }
 }

@@ -1,7 +1,7 @@
 #' Search for matches to a regular expression
 #' 
 #' Search a character vector for one or more matches to an Oniguruma-compatible
-#' regular expression. The result is of class \code{"orematch"}, for which
+#' regular expression. The result is of class \code{"orematches"}, for which
 #' printing and indexing methods are available.
 #' 
 #' @param regex A single character string or object of class \code{"ore"}. In
@@ -16,10 +16,12 @@
 #'   searching. Will be recycled to the length of \code{text}.
 #' @param simplify If \code{TRUE}, an object of class \code{"orematch"} will
 #'   be returned if \code{text} is of length 1. Otherwise, a list of such
-#'   objects will always be returned.
+#'   objects, with class \code{"orematches"}, will always be returned.
 #' @param x An R object.
-#' @param i For indexing into an \code{"orematch"} object, the match number.
-#' @param j For indexing into an \code{"orematch"} object, the group number.
+#' @param i For indexing into an \code{"orematches"} object only, the string
+#'   number.
+#' @param j For indexing, the match number.
+#' @param k For indexing, the group number.
 #' @param lines The maximum number of lines to print. If \code{NULL}, this
 #'   defaults to the value of the \code{"ore.lines"} option, or 0 if that is
 #'   unset or invalid. Zero means no limit.
@@ -46,6 +48,7 @@
 #'   object has class \code{"orematch"}. For extraction with one index, a
 #'   vector of matched substrings. For extraction with two indices, a vector
 #'   or matrix of substrings corresponding to captured groups.
+#' 
 #' @note
 #' Only named *or* unnamed groups will currently be captured, not both. If
 #' there are named groups in the pattern, then unnamed groups will be ignored.
@@ -87,12 +90,26 @@ is.orematch <- is_orematch <- function (x)
 
 #' @rdname ore.search
 #' @export
-"[.orematch" <- function (x, i, j, ...)
+"[.orematch" <- function (x, j, k, ...)
 {
-    if (missing(j))
-        return (x$matches[i])
+    if (missing(k))
+        return (x$matches[j])
     else
-        return (x$groups$matches[i,j])
+        return (x$groups$matches[j,k])
+}
+
+#' @rdname ore.search
+#' @export
+"[.orematches" <- function (x, i, j, k, ...)
+{
+    if (missing(j) && missing(k))
+        return (unclass(x)[i])
+    else if (missing(k))
+        return (sapply(unclass(x)[i], function(match) { if (is.null(match)) NA_character_ else match[j] }, simplify="array"))
+    else if (missing(j))
+        return (sapply(unclass(x)[i], function(match) { if (is.null(match)) NA_character_ else match[,k,...] }, simplify="array"))
+    else
+        return (sapply(unclass(x)[i], function(match) { if (is.null(match)) NA_character_ else match[j,k,...] }, simplify="array"))
 }
 
 #' @rdname ore.search
@@ -103,7 +120,7 @@ print.orematch <- function (x, lines = NULL, context = NULL, width = NULL, ...)
     if (x$nMatches == 0)
         cat("<no match>\n")
     else if (is.null(x$text))
-        cat(es("<#{x$nMatches} match(es)>\n"))
+        cat(es("<#{x$nMatches} #{ifelse(x$nMatches==1L,'match','matches')}>\n"))
     else
     {
         getOptionWithDefault <- function (value, name, default)
@@ -135,6 +152,24 @@ print.orematch <- function (x, lines = NULL, context = NULL, width = NULL, ...)
     invisible(NULL)
 }
 
+#' @rdname ore.search
+#' @export
+print.orematches <- function (x, ...)
+{
+    if (length(x) == 0)
+        cat("<no match>\n")
+    else
+    {
+        matchCount <- sum(sapply(x, function(match) {
+            if (is.null(match))
+                return (0L)
+            else
+                return (match$nMatches)
+        }))
+        cat(es("<#{matchCount} #{ifelse(matchCount==1L,'match','matches')} in #{length(x)} #{ifelse(length(x)==1L,'string','strings')}>\n"))
+    }
+}
+
 #' Extract matching substrings
 #' 
 #' These functions extract entire matches, or just subgroup matches, from
@@ -143,7 +178,9 @@ print.orematch <- function (x, lines = NULL, context = NULL, width = NULL, ...)
 #' string is searched. For other objects they return \code{NA}.
 #' 
 #' @param object An R object. Methods are provided for generic lists and
-#'   \code{"orematch"} objects.
+#'   \code{"orematch"} objects. If no object is provided (i.e. the method is
+#'   called with no arguments), the value of \code{\link{ore.lastmatch}} will
+#'   be used as a default.
 #' @param simplify For the list methods, should nonmatching elements be removed
 #'   from the result?
 #' @param ... Further arguments to methods.
@@ -155,12 +192,15 @@ print.orematch <- function (x, lines = NULL, context = NULL, width = NULL, ...)
 #' @export
 matches <- function (object, ...)
 {
-    UseMethod("matches")
+    if (missing(object))
+        matches(ore.lastmatch())
+    else
+        UseMethod("matches", object)
 }
 
 #' @rdname matches
 #' @export
-matches.list <- function (object, simplify = TRUE, ...)
+matches.orematches <- function (object, simplify = TRUE, ...)
 {
     if (simplify)
     {
@@ -192,12 +232,15 @@ matches.default <- function (object, ...)
 #' @export
 groups <- function (object, ...)
 {
-    UseMethod("groups")
+    if (missing(object))
+        groups(ore.lastmatch())
+    else
+        UseMethod("groups", object)
 }
 
 #' @rdname matches
 #' @export
-groups.list <- function (object, simplify = TRUE, ...)
+groups.orematches <- function (object, simplify = TRUE, ...)
 {
     if (simplify)
     {
