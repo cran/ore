@@ -6,6 +6,8 @@
 
 #include "compile.h"
 
+OnigSyntaxType *modified_ruby_syntax;
+
 // Not strictly part of the API, but useful for case-insensitive string comparison
 extern int onigenc_with_ascii_strnicmp (OnigEncoding enc, const UChar *p, const UChar *end, const UChar *sascii, int n);
 
@@ -97,8 +99,18 @@ OnigEncoding ore_name_to_onig_enc (const char *enc)
         return ONIG_ENCODING_BIG5;
     else if (ore_strnicmp(enc,"CP932",5) == 0)
         return ONIG_ENCODING_CP932;
-    else if (ore_strnicmp(enc,"CP1251",6) == 0)
-        return ONIG_ENCODING_CP1251;
+    else if (ore_strnicmp(enc,"CP1250",6) == 0 || ore_strnicmp(enc,"WINDOWS-1250",12) == 0)
+        return ONIG_ENCODING_WINDOWS_1250;
+    else if (ore_strnicmp(enc,"CP1251",6) == 0 || ore_strnicmp(enc,"WINDOWS-1251",12) == 0)
+        return ONIG_ENCODING_WINDOWS_1251;
+    else if (ore_strnicmp(enc,"CP1252",6) == 0 || ore_strnicmp(enc,"WINDOWS-1252",12) == 0)
+        return ONIG_ENCODING_WINDOWS_1252;
+    else if (ore_strnicmp(enc,"CP1253",6) == 0 || ore_strnicmp(enc,"WINDOWS-1253",12) == 0)
+        return ONIG_ENCODING_WINDOWS_1253;
+    else if (ore_strnicmp(enc,"CP1254",6) == 0 || ore_strnicmp(enc,"WINDOWS-1254",12) == 0)
+        return ONIG_ENCODING_WINDOWS_1254;
+    else if (ore_strnicmp(enc,"CP1257",6) == 0 || ore_strnicmp(enc,"WINDOWS-1257",12) == 0)
+        return ONIG_ENCODING_WINDOWS_1257;
     else if (ore_strnicmp(enc,"EUC-JP",6) == 0 || ore_strnicmp(enc,"EUCJP",5) == 0)
         return ONIG_ENCODING_EUC_JP;
     else if (ore_strnicmp(enc,"EUC-KR",6) == 0 || ore_strnicmp(enc,"EUCKR",5) == 0)
@@ -109,8 +121,8 @@ OnigEncoding ore_name_to_onig_enc (const char *enc)
         return ONIG_ENCODING_GB18030;
     else if (ore_strnicmp(enc,"KOI8-R",6) == 0)
         return ONIG_ENCODING_KOI8_R;
-    else if (ore_strnicmp(enc,"KOI8",4) == 0)
-        return ONIG_ENCODING_KOI8;
+    else if (ore_strnicmp(enc,"KOI8-U",4) == 0)
+        return ONIG_ENCODING_KOI8_U;
     else if (ore_strnicmp(enc,"SHIFT_JIS",9) == 0 || ore_strnicmp(enc,"SHIFT-JIS",9) == 0 || ore_strnicmp(enc,"SJIS",4) == 0)
         return ONIG_ENCODING_SJIS;
     else
@@ -148,15 +160,9 @@ regex_t * ore_compile (const char *pattern, const char *options, OnigEncoding en
     
     OnigSyntaxType *syntax;
     if (strncmp(syntax_name, "ruby", 4) == 0)
-    {
-        // Use the default (Ruby) syntax, with one adjustment: we want \d, \s and \w to work across scripts
-        syntax = ONIG_SYNTAX_RUBY;
-        ONIG_OPTION_OFF(syntax->options, ONIG_OPTION_ASCII_RANGE);
-    }
+        syntax = modified_ruby_syntax;
     else if (strncmp(syntax_name, "fixed", 5) == 0)
-    {
-        syntax = ONIG_SYNTAX_ASIS;
-    }
+        syntax = (OnigSyntaxType *) ONIG_SYNTAX_ASIS;
     else
         error("Syntax name \"%s\" is invalid\n", syntax_name);
     
@@ -287,25 +293,25 @@ SEXP ore_build (SEXP pattern_, SEXP options_, SEXP encoding_name_, SEXP syntax_n
     R_RegisterCFinalizerEx(regex_ptr, &ore_regex_finaliser, FALSE);
     setAttrib(result, install(".compiled"), regex_ptr);
     
-    setAttrib(result, install("options"), ScalarString(STRING_ELT(options_, 0)));
-    setAttrib(result, install("syntax"), ScalarString(STRING_ELT(syntax_name_, 0)));
+    setAttrib(result, install("options"), PROTECT(ScalarString(STRING_ELT(options_, 0))));
+    setAttrib(result, install("syntax"), PROTECT(ScalarString(STRING_ELT(syntax_name_, 0))));
     
     switch (encoding)
     {
         case CE_UTF8:
-        setAttrib(result, install("encoding"), mkString("UTF-8"));
+        setAttrib(result, install("encoding"), PROTECT(mkString("UTF-8")));
         break;
         
         case CE_LATIN1:
-        setAttrib(result, install("encoding"), mkString("latin1"));
+        setAttrib(result, install("encoding"), PROTECT(mkString("latin1")));
         break;
         
         default:
-        setAttrib(result, install("encoding"), mkString("unknown"));
+        setAttrib(result, install("encoding"), PROTECT(mkString("unknown")));
         break;
     }
     
-    setAttrib(result, install("nGroups"), ScalarInteger(n_groups));
+    setAttrib(result, install("nGroups"), PROTECT(ScalarInteger(n_groups)));
     
     // Obtain group names, if available
     if (n_groups > 0)
@@ -336,6 +342,6 @@ SEXP ore_build (SEXP pattern_, SEXP options_, SEXP encoding_name_, SEXP syntax_n
     
     setAttrib(result, R_ClassSymbol, mkString("ore"));
     
-    UNPROTECT(2);
+    UNPROTECT(6);
     return result;
 }

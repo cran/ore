@@ -1,10 +1,11 @@
-#ifndef ONIGGNU_H
-#define ONIGGNU_H
+#ifndef ONIGMOGNU_H
+#define ONIGMOGNU_H
 /**********************************************************************
-  oniggnu.h - Oniguruma (regular expression library)
+  onigmognu.h - Onigmo (Oniguruma-mod) (regular expression library)
 **********************************************************************/
 /*-
  * Copyright (c) 2002-2005  K.Kosako  <sndgk393 AT ybb DOT ne DOT jp>
+ * Copyright (c) 2011-2016  K.Takata  <kentkt AT csc DOT jp>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -29,7 +30,7 @@
  * SUCH DAMAGE.
  */
 
-#include "oniguruma.h"
+#include "onigmo.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -58,28 +59,28 @@ extern "C" {
 
 
 ONIG_EXTERN
-void re_mbcinit P_((int));
+void re_mbcinit(int);
 ONIG_EXTERN
-int re_compile_pattern P_((const char*, int, struct re_pattern_buffer*, char* err_buf));
+int re_compile_pattern(const char*, int, struct re_pattern_buffer*, char* err_buf);
 ONIG_EXTERN
-int re_recompile_pattern P_((const char*, int, struct re_pattern_buffer*, char* err_buf));
+int re_recompile_pattern(const char*, int, struct re_pattern_buffer*, char* err_buf);
 ONIG_EXTERN
-void re_free_pattern P_((struct re_pattern_buffer*));
+void re_free_pattern(struct re_pattern_buffer*);
 ONIG_EXTERN
-int re_adjust_startpos P_((struct re_pattern_buffer*, const char*, int, int, int));
+int re_adjust_startpos(struct re_pattern_buffer*, const char*, int, int, int);
 ONIG_EXTERN
-int re_search P_((struct re_pattern_buffer*, const char*, int, int, int, struct re_registers*));
+int re_search(struct re_pattern_buffer*, const char*, int, int, int, struct re_registers*);
 ONIG_EXTERN
-int re_match P_((struct re_pattern_buffer*, const char *, int, int, struct re_registers*));
+int re_match(struct re_pattern_buffer*, const char *, int, int, struct re_registers*);
 ONIG_EXTERN
-void re_set_casetable P_((const char*));
+void re_set_casetable(const char*);
 ONIG_EXTERN
-void re_free_registers P_((struct re_registers*));
+void re_free_registers(struct re_registers*);
 ONIG_EXTERN
-int re_alloc_pattern P_((struct re_pattern_buffer**));  /* added */
+int re_alloc_pattern(struct re_pattern_buffer**);  /* added */
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* ONIGGNU_H */
+#endif /* ONIGMOGNU_H */

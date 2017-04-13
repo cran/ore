@@ -17,6 +17,9 @@
 #' @param simplify If \code{TRUE}, an object of class \code{"orematch"} will
 #'   be returned if \code{text} is of length 1. Otherwise, a list of such
 #'   objects, with class \code{"orematches"}, will always be returned.
+#' @param incremental If \code{TRUE} and the \code{text} argument points to a
+#'   file, the file is read in increasingly large blocks. This can reduce
+#'   search time in large files.
 #' @param x An R object.
 #' @param i For indexing into an \code{"orematches"} object only, the string
 #'   number.
@@ -72,9 +75,9 @@
 #' matching substrings.
 #' @aliases orematch ore_search
 #' @export ore.search ore_search
-ore.search <- ore_search <- function (regex, text, all = FALSE, start = 1L, simplify = TRUE)
+ore.search <- ore_search <- function (regex, text, all = FALSE, start = 1L, simplify = TRUE, incremental = !all)
 {
-    match <- .Call("ore_search_all", regex, text, as.logical(all), as.integer(start), as.logical(simplify), PACKAGE="ore")
+    match <- .Call(C_ore_search_all, regex, text, as.logical(all), as.integer(start), as.logical(simplify), as.logical(incremental))
     
     .Workspace$lastMatch <- match
     return (match)
@@ -146,7 +149,7 @@ print.orematch <- function (x, lines = NULL, context = NULL, width = NULL, ...)
         context <- getOptionWithDefault(context, "ore.context", 30L)
         width <- getOptionWithDefault(width, "width", 80L)
         
-        .Call("ore_print_match", x, context, width, lines, usingColour, PACKAGE="ore")
+        .Call(C_ore_print_match, x, context, width, lines, usingColour)
     }
     
     invisible(NULL)
@@ -314,9 +317,7 @@ ore.lastmatch <- ore_lastmatch <- function (simplify = TRUE)
 #' 
 #' @param regex A single character string or object of class \code{"ore"}.
 #' @param text A character vector of strings to search.
-#' @param all Passed to \code{\link{ore.search}}. Makes no difference to the
-#'   return value of these functions, but influences the underlying
-#'   \code{"orematch"} object, which can be retrieved afterwards.
+#' @param ... Further arguments to \code{\link{ore.search}}.
 #' @param X A character vector or \code{"ore"} object. See Details.
 #' @param Y A character vector. See Details.
 #' @return A logical vector, indicating whether elements of \code{text} match
@@ -334,9 +335,9 @@ ore.lastmatch <- ore_lastmatch <- function (simplify = TRUE)
 #' @seealso \code{\link{ore.search}}
 #' @aliases ore_ismatch
 #' @export ore.ismatch ore_ismatch
-ore.ismatch <- ore_ismatch <- function (regex, text, all = FALSE)
+ore.ismatch <- ore_ismatch <- function (regex, text, ...)
 {
-    match <- ore.search(regex, text, all=all, start=1L, simplify=FALSE)
+    match <- ore.search(regex, text, simplify=FALSE, ...)
     return (!sapply(match, is.null))
 }
 
@@ -393,7 +394,7 @@ ore.split <- ore_split <- function (regex, text, start = 1L, simplify = TRUE)
     if (!is.character(text))
         text <- as.character(text)
     
-    return (.Call("ore_split", regex, text, as.integer(start), as.logical(simplify), PACKAGE="ore"))
+    return (.Call(C_ore_split, regex, text, as.integer(start), as.logical(simplify)))
 }
 
 #' Replace matched substrings with new text
@@ -436,5 +437,5 @@ ore.subst <- ore_subst <- function (regex, replacement, text, ..., all = FALSE)
     if (!is.character(replacement))
         replacement <- match.fun(replacement)
         
-    return (.Call("ore_substitute_all", regex, replacement, text, as.logical(all), new.env(), pairlist(...), PACKAGE="ore"))
+    return (.Call(C_ore_substitute_all, regex, replacement, text, as.logical(all), new.env(), pairlist(...)))
 }

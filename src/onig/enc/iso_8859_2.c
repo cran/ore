@@ -1,5 +1,5 @@
 /**********************************************************************
-  iso8859_13.c -  Oniguruma (regular expression library)
+  iso8859_2.c -  Oniguruma (regular expression library)
 **********************************************************************/
 /*-
  * Copyright (c) 2002-2007  K.Kosako  <sndgk393 AT ybb DOT ne DOT jp>
@@ -28,12 +28,13 @@
  */
 
 #include "regenc.h"
+#include "iso_8859.h"
 
-#define ENC_ISO_8859_13_TO_LOWER_CASE(c) EncISO_8859_13_ToLowerCaseTable[c]
-#define ENC_IS_ISO_8859_13_CTYPE(code,ctype) \
-  ((EncISO_8859_13_CtypeTable[code] & CTYPE_TO_BIT(ctype)) != 0)
+#define ENC_ISO_8859_2_TO_LOWER_CASE(c) EncISO_8859_2_ToLowerCaseTable[c]
+#define ENC_IS_ISO_8859_2_CTYPE(code,ctype) \
+  ((EncISO_8859_2_CtypeTable[code] & CTYPE_TO_BIT(ctype)) != 0)
 
-static const UChar EncISO_8859_13_ToLowerCaseTable[256] = {
+static const UChar EncISO_8859_2_ToLowerCaseTable[256] = {
   '\000', '\001', '\002', '\003', '\004', '\005', '\006', '\007',
   '\010', '\011', '\012', '\013', '\014', '\015', '\016', '\017',
   '\020', '\021', '\022', '\023', '\024', '\025', '\026', '\027',
@@ -54,8 +55,8 @@ static const UChar EncISO_8859_13_ToLowerCaseTable[256] = {
   '\210', '\211', '\212', '\213', '\214', '\215', '\216', '\217',
   '\220', '\221', '\222', '\223', '\224', '\225', '\226', '\227',
   '\230', '\231', '\232', '\233', '\234', '\235', '\236', '\237',
-  '\240', '\241', '\242', '\243', '\244', '\245', '\246', '\247',
-  '\270', '\251', '\272', '\253', '\254', '\255', '\256', '\277',
+  '\240', '\261', '\242', '\263', '\244', '\265', '\266', '\247',
+  '\250', '\271', '\272', '\273', '\274', '\255', '\276', '\277',
   '\260', '\261', '\262', '\263', '\264', '\265', '\266', '\267',
   '\270', '\271', '\272', '\273', '\274', '\275', '\276', '\277',
   '\340', '\341', '\342', '\343', '\344', '\345', '\346', '\347',
@@ -68,7 +69,7 @@ static const UChar EncISO_8859_13_ToLowerCaseTable[256] = {
   '\370', '\371', '\372', '\373', '\374', '\375', '\376', '\377'
 };
 
-static const unsigned short EncISO_8859_13_CtypeTable[256] = {
+static const unsigned short EncISO_8859_2_CtypeTable[256] = {
   0x4008, 0x4008, 0x4008, 0x4008, 0x4008, 0x4008, 0x4008, 0x4008,
   0x4008, 0x420c, 0x4209, 0x4208, 0x4208, 0x4208, 0x4008, 0x4008,
   0x4008, 0x4008, 0x4008, 0x4008, 0x4008, 0x4008, 0x4008, 0x4008,
@@ -89,10 +90,10 @@ static const unsigned short EncISO_8859_13_CtypeTable[256] = {
   0x0008, 0x0008, 0x0008, 0x0008, 0x0008, 0x0008, 0x0008, 0x0008,
   0x0008, 0x0008, 0x0008, 0x0008, 0x0008, 0x0008, 0x0008, 0x0008,
   0x0008, 0x0008, 0x0008, 0x0008, 0x0008, 0x0008, 0x0008, 0x0008,
-  0x0284, 0x01a0, 0x00a0, 0x00a0, 0x00a0, 0x01a0, 0x00a0, 0x00a0,
-  0x34a2, 0x00a0, 0x34a2, 0x01a0, 0x00a0, 0x01a0, 0x00a0, 0x34a2,
-  0x00a0, 0x00a0, 0x10a0, 0x10a0, 0x01a0, 0x30e2, 0x00a0, 0x01a0,
-  0x30e2, 0x10a0, 0x30e2, 0x01a0, 0x10a0, 0x10a0, 0x10a0, 0x30e2,
+  0x0284, 0x34a2, 0x00a0, 0x34a2, 0x00a0, 0x34a2, 0x34a2, 0x00a0,
+  0x00a0, 0x34a2, 0x34a2, 0x34a2, 0x34a2, 0x01a0, 0x34a2, 0x34a2,
+  0x00a0, 0x30e2, 0x00a0, 0x30e2, 0x00a0, 0x30e2, 0x30e2, 0x00a0,
+  0x00a0, 0x30e2, 0x30e2, 0x30e2, 0x30e2, 0x00a0, 0x30e2, 0x30e2,
   0x34a2, 0x34a2, 0x34a2, 0x34a2, 0x34a2, 0x34a2, 0x34a2, 0x34a2,
   0x34a2, 0x34a2, 0x34a2, 0x34a2, 0x34a2, 0x34a2, 0x34a2, 0x34a2,
   0x34a2, 0x34a2, 0x34a2, 0x34a2, 0x34a2, 0x34a2, 0x34a2, 0x00a0,
@@ -100,25 +101,26 @@ static const unsigned short EncISO_8859_13_CtypeTable[256] = {
   0x30e2, 0x30e2, 0x30e2, 0x30e2, 0x30e2, 0x30e2, 0x30e2, 0x30e2,
   0x30e2, 0x30e2, 0x30e2, 0x30e2, 0x30e2, 0x30e2, 0x30e2, 0x30e2,
   0x30e2, 0x30e2, 0x30e2, 0x30e2, 0x30e2, 0x30e2, 0x30e2, 0x00a0,
-  0x30e2, 0x30e2, 0x30e2, 0x30e2, 0x30e2, 0x30e2, 0x30e2, 0x01a0
+  0x30e2, 0x30e2, 0x30e2, 0x30e2, 0x30e2, 0x30e2, 0x30e2, 0x00a0
 };
 
 static int
 mbc_case_fold(OnigCaseFoldType flag,
-	      const UChar** pp, const UChar* end ARG_UNUSED, UChar* lower)
+	      const UChar** pp, const UChar* end ARG_UNUSED, UChar* lower,
+	      OnigEncoding enc ARG_UNUSED)
 {
   const UChar* p = *pp;
 
-  if (*p == 0xdf && (flag & INTERNAL_ONIGENC_CASE_FOLD_MULTI_CHAR) != 0) {
+  if (*p == SHARP_s && (flag & INTERNAL_ONIGENC_CASE_FOLD_MULTI_CHAR) != 0) {
     *lower++ = 's';
     *lower   = 's';
     (*pp)++;
     return 2;
   }
 
-  *lower = ENC_ISO_8859_13_TO_LOWER_CASE(*p);
+  *lower = ENC_ISO_8859_2_TO_LOWER_CASE(*p);
   (*pp)++;
-  return 1;
+  return 1; /* return byte length of converted char to lower */
 }
 
 #if 0
@@ -128,35 +130,33 @@ is_mbc_ambiguous(OnigCaseFoldType flag, const UChar** pp, const UChar* end)
   int v;
   const UChar* p = *pp;
 
-  if (*p == 0xdf && (flag & INTERNAL_ONIGENC_CASE_FOLD_MULTI_CHAR) != 0) {
+  if (*p == SHARP_s && (flag & INTERNAL_ONIGENC_CASE_FOLD_MULTI_CHAR) != 0) {
     (*pp)++;
     return TRUE;
   }
 
   (*pp)++;
-  v = (EncISO_8859_13_CtypeTable[*p] & (BIT_CTYPE_UPPER | BIT_CTYPE_LOWER));
+  v = (EncISO_8859_2_CtypeTable[*p] & (BIT_CTYPE_UPPER | BIT_CTYPE_LOWER));
   if ((v | BIT_CTYPE_LOWER) != 0) {
-    /* 0xdf, 0xb5 are lower case letter, but can't convert. */
-    if (*p == 0xb5)
-      return FALSE;
-    else
-      return TRUE;
+    return TRUE;
   }
 
   return (v != 0 ? TRUE : FALSE);
 }
 #endif
 
-static int
-is_code_ctype(OnigCodePoint code, unsigned int ctype)
-{
-  if (code < 256)
-    return ENC_IS_ISO_8859_13_CTYPE(code, ctype);
-  else
-    return FALSE;
-}
-
 static const OnigPairCaseFoldCodes CaseFoldMap[] = {
+ { 0xa1, 0xb1 },
+ { 0xa3, 0xb3 },
+ { 0xa5, 0xb5 },
+ { 0xa6, 0xb6 },
+ { 0xa9, 0xb9 },
+ { 0xaa, 0xba },
+ { 0xab, 0xbb },
+ { 0xac, 0xbc },
+ { 0xae, 0xbe },
+ { 0xaf, 0xbf },
+
  { 0xc0, 0xe0 },
  { 0xc1, 0xe1 },
  { 0xc2, 0xe2 },
@@ -192,25 +192,84 @@ static const OnigPairCaseFoldCodes CaseFoldMap[] = {
 
 static int
 apply_all_case_fold(OnigCaseFoldType flag,
-		    OnigApplyAllCaseFoldFunc f, void* arg)
+		    OnigApplyAllCaseFoldFunc f, void* arg,
+		    OnigEncoding enc ARG_UNUSED)
 {
   return onigenc_apply_all_case_fold_with_map(
-             numberof(CaseFoldMap), CaseFoldMap, 1,
-             flag, f, arg);
+            numberof(CaseFoldMap), CaseFoldMap, 1,
+            flag, f, arg);
 }
 
 static int
 get_case_fold_codes_by_str(OnigCaseFoldType flag,
-   const OnigUChar* p, const OnigUChar* end, OnigCaseFoldCodeItem items[])
+			   const OnigUChar* p, const OnigUChar* end,
+			   OnigCaseFoldCodeItem items[],
+			   OnigEncoding enc ARG_UNUSED)
 {
   return onigenc_get_case_fold_codes_by_str_with_map(
 	     numberof(CaseFoldMap), CaseFoldMap, 1,
 	     flag, p, end, items);
 }
 
-OnigEncodingType OnigEncodingISO_8859_13 = {
+static int
+is_code_ctype(OnigCodePoint code, unsigned int ctype, OnigEncoding enc ARG_UNUSED)
+{
+  if (code < 256)
+    return ENC_IS_ISO_8859_2_CTYPE(code, ctype);
+  else
+    return FALSE;
+}
+
+static int
+case_map(OnigCaseFoldType* flagP, const OnigUChar** pp,
+	 const OnigUChar* end, OnigUChar* to, OnigUChar* to_end,
+	 const struct OnigEncodingTypeST* enc)
+{
+  OnigCodePoint code;
+  OnigUChar *to_start = to;
+  OnigCaseFoldType flags = *flagP;
+
+  while (*pp < end && to < to_end) {
+    code = *(*pp)++;
+    if (code == SHARP_s) {
+      if (flags & ONIGENC_CASE_UPCASE) {
+	flags |= ONIGENC_CASE_MODIFIED;
+	*to++ = 'S';
+	code = (flags & ONIGENC_CASE_TITLECASE) ? 's' : 'S';
+      }
+      else if (flags & ONIGENC_CASE_FOLD) {
+	flags |= ONIGENC_CASE_MODIFIED;
+	*to++ = 's';
+	code = 's';
+      }
+    }
+    else if ((EncISO_8859_2_CtypeTable[code] & BIT_CTYPE_UPPER)
+	     && (flags & (ONIGENC_CASE_DOWNCASE | ONIGENC_CASE_FOLD))) {
+      flags |= ONIGENC_CASE_MODIFIED;
+      code = ENC_ISO_8859_2_TO_LOWER_CASE(code);
+    }
+    else if ((EncISO_8859_2_CtypeTable[code] & BIT_CTYPE_LOWER)
+       && (flags & ONIGENC_CASE_UPCASE)) {
+      if (code >= 0xB1 && code <= 0xBF) {
+	flags |= ONIGENC_CASE_MODIFIED;
+	code -= 0x10;
+      }
+      else {
+	flags |= ONIGENC_CASE_MODIFIED;
+	code -= 0x20;
+      }
+    }
+    *to++ = code;
+    if (flags & ONIGENC_CASE_TITLECASE)  /* switch from titlecase to lowercase for capitalize */
+      flags ^= (ONIGENC_CASE_UPCASE | ONIGENC_CASE_DOWNCASE | ONIGENC_CASE_TITLECASE);
+  }
+  *flagP = flags;
+  return (int )(to - to_start);
+}
+
+OnigEncodingDefine(iso_8859_2, ISO_8859_2) = {
   onigenc_single_byte_mbc_enc_len,
-  "ISO-8859-13",  /* name */
+  "ISO-8859-2",  /* name */
   1,             /* max enc length */
   1,             /* min enc length */
   onigenc_is_mbc_newline_0x0a,
@@ -225,5 +284,8 @@ OnigEncodingType OnigEncodingISO_8859_13 = {
   onigenc_not_support_get_ctype_code_range,
   onigenc_single_byte_left_adjust_char_head,
   onigenc_always_true_is_allowed_reverse_match,
+  case_map,
+  0,
   ONIGENC_FLAG_NONE,
 };
+ENC_ALIAS("ISO8859-2", "ISO-8859-2")

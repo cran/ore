@@ -28,13 +28,7 @@
  * SUCH DAMAGE.
  */
 
-#include "regint.h"
-
-#ifdef ENC_CP932
-#define ONIG_ENCODING_SELF	ONIG_ENCODING_CP932
-#else
-#define ONIG_ENCODING_SELF	ONIG_ENCODING_SJIS
-#endif
+#include "regenc.h"
 
 static const int EncLen_SJIS[] = {
   1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
@@ -168,20 +162,72 @@ static const OnigPairCaseFoldCodes CaseFoldMap[] = {
 #define SJIS_ISMB_FIRST(byte)  (EncLen_SJIS[byte] > 1)
 #define SJIS_ISMB_TRAIL(byte)  SJIS_CAN_BE_TRAIL_TABLE[(byte)]
 
+typedef enum { FAILURE = -2, ACCEPT = -1, S0 = 0, S1 } state_t;
+#define A ACCEPT
+#define F FAILURE
+static const signed char trans[][0x100] = {
+  { /* S0   0  1  2  3  4  5  6  7  8  9  a  b  c  d  e  f */
+    /* 0 */ A, A, A, A, A, A, A, A, A, A, A, A, A, A, A, A,
+    /* 1 */ A, A, A, A, A, A, A, A, A, A, A, A, A, A, A, A,
+    /* 2 */ A, A, A, A, A, A, A, A, A, A, A, A, A, A, A, A,
+    /* 3 */ A, A, A, A, A, A, A, A, A, A, A, A, A, A, A, A,
+    /* 4 */ A, A, A, A, A, A, A, A, A, A, A, A, A, A, A, A,
+    /* 5 */ A, A, A, A, A, A, A, A, A, A, A, A, A, A, A, A,
+    /* 6 */ A, A, A, A, A, A, A, A, A, A, A, A, A, A, A, A,
+    /* 7 */ A, A, A, A, A, A, A, A, A, A, A, A, A, A, A, A,
+    /* 8 */ F, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    /* 9 */ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    /* a */ F, A, A, A, A, A, A, A, A, A, A, A, A, A, A, A,
+    /* b */ A, A, A, A, A, A, A, A, A, A, A, A, A, A, A, A,
+    /* c */ A, A, A, A, A, A, A, A, A, A, A, A, A, A, A, A,
+    /* d */ A, A, A, A, A, A, A, A, A, A, A, A, A, A, A, A,
+    /* e */ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    /* f */ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, F, F, F
+  },
+  { /* S1   0  1  2  3  4  5  6  7  8  9  a  b  c  d  e  f */
+    /* 0 */ F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, F,
+    /* 1 */ F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, F,
+    /* 2 */ F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, F,
+    /* 3 */ F, F, F, F, F, F, F, F, F, F, F, F, F, F, F, F,
+    /* 4 */ A, A, A, A, A, A, A, A, A, A, A, A, A, A, A, A,
+    /* 5 */ A, A, A, A, A, A, A, A, A, A, A, A, A, A, A, A,
+    /* 6 */ A, A, A, A, A, A, A, A, A, A, A, A, A, A, A, A,
+    /* 7 */ A, A, A, A, A, A, A, A, A, A, A, A, A, A, A, F,
+    /* 8 */ A, A, A, A, A, A, A, A, A, A, A, A, A, A, A, A,
+    /* 9 */ A, A, A, A, A, A, A, A, A, A, A, A, A, A, A, A,
+    /* a */ A, A, A, A, A, A, A, A, A, A, A, A, A, A, A, A,
+    /* b */ A, A, A, A, A, A, A, A, A, A, A, A, A, A, A, A,
+    /* c */ A, A, A, A, A, A, A, A, A, A, A, A, A, A, A, A,
+    /* d */ A, A, A, A, A, A, A, A, A, A, A, A, A, A, A, A,
+    /* e */ A, A, A, A, A, A, A, A, A, A, A, A, A, A, A, A,
+    /* f */ A, A, A, A, A, A, A, A, A, A, A, A, A, F, F, F
+  }
+};
+#undef A
+#undef F
+
 static int
-mbc_enc_len(const UChar* p)
+mbc_enc_len(const UChar* p, const UChar* e, OnigEncoding enc ARG_UNUSED)
 {
-  return EncLen_SJIS[*p];
+  int firstbyte = *p++;
+  state_t s;
+  s = trans[0][firstbyte];
+  if (s < 0) return s == ACCEPT ? ONIGENC_CONSTRUCT_MBCLEN_CHARFOUND(1) :
+                                  ONIGENC_CONSTRUCT_MBCLEN_INVALID();
+  if (p == e) return ONIGENC_CONSTRUCT_MBCLEN_NEEDMORE(EncLen_SJIS[firstbyte]-1);
+  s = trans[s][*p++];
+  return s == ACCEPT ? ONIGENC_CONSTRUCT_MBCLEN_CHARFOUND(2) :
+                       ONIGENC_CONSTRUCT_MBCLEN_INVALID();
 }
 
 static int
-code_to_mbclen(OnigCodePoint code)
+code_to_mbclen(OnigCodePoint code, OnigEncoding enc ARG_UNUSED)
 {
   if (code < 256) {
     if (EncLen_SJIS[(int )code] == 1)
       return 1;
     else
-      return 0;
+      return ONIGERR_INVALID_CODE_POINT_VALUE;
   }
   else if (code <= 0xffff) {
     int low = code & 0xff;
@@ -190,16 +236,16 @@ code_to_mbclen(OnigCodePoint code)
     return 2;
   }
   else
-    return ONIGERR_INVALID_CODE_POINT_VALUE;
+    return ONIGERR_TOO_BIG_WIDE_CHAR_VALUE;
 }
 
 static OnigCodePoint
-mbc_to_code(const UChar* p, const UChar* end)
+mbc_to_code(const UChar* p, const UChar* end, OnigEncoding enc)
 {
   int c, i, len;
   OnigCodePoint n;
 
-  len = mbc_enc_len(p);
+  len = mbc_enc_len(p, end, enc);
   c = *p++;
   n = c;
   if (len == 1) return n;
@@ -213,7 +259,7 @@ mbc_to_code(const UChar* p, const UChar* end)
 }
 
 static int
-code_to_mbc(OnigCodePoint code, UChar *buf)
+code_to_mbc(OnigCodePoint code, UChar *buf, OnigEncoding enc)
 {
   UChar *p = buf;
 
@@ -221,7 +267,7 @@ code_to_mbc(OnigCodePoint code, UChar *buf)
   *p++ = (UChar )(code & 0xff);
 
 #if 0
-  if (mbc_enc_len(buf) != (p - buf))
+  if (mbc_enc_len(buf, p, enc) != (p - buf))
     return REGERR_INVALID_CODE_POINT_VALUE;
 #endif
   return (int )(p - buf);
@@ -229,7 +275,7 @@ code_to_mbc(OnigCodePoint code, UChar *buf)
 
 static int
 apply_all_case_fold(OnigCaseFoldType flag,
-		    OnigApplyAllCaseFoldFunc f, void* arg)
+		    OnigApplyAllCaseFoldFunc f, void* arg, OnigEncoding enc)
 {
   return onigenc_apply_all_case_fold_with_map(
             numberof(CaseFoldMap), CaseFoldMap, 0,
@@ -278,16 +324,16 @@ get_upper_case(OnigCodePoint code)
 static int
 get_case_fold_codes_by_str(OnigCaseFoldType flag,
 			   const OnigUChar* p, const OnigUChar* end,
-			   OnigCaseFoldCodeItem items[])
+			   OnigCaseFoldCodeItem items[], OnigEncoding enc)
 {
   int len;
   OnigCodePoint code, code_lo, code_up;
 
-  code = mbc_to_code(p, end);
+  code = mbc_to_code(p, end, enc);
   if (ONIGENC_IS_ASCII_CODE(code))
-    return onigenc_ascii_get_case_fold_codes_by_str(flag, p, end, items);
+    return onigenc_ascii_get_case_fold_codes_by_str(flag, p, end, items, enc);
 
-  len = mbc_enc_len(p);
+  len = mbc_enc_len(p, end, enc);
   code_lo = get_lower_case(code);
   code_up = get_upper_case(code);
 
@@ -308,8 +354,9 @@ get_case_fold_codes_by_str(OnigCaseFoldType flag,
 }
 
 static int
-mbc_case_fold(OnigCaseFoldType flag ARG_UNUSED,
-	      const UChar** pp, const UChar* end ARG_UNUSED, UChar* lower)
+mbc_case_fold(OnigCaseFoldType flag,
+	      const UChar** pp, const UChar* end, UChar* lower,
+	      OnigEncoding enc)
 {
   const UChar* p = *pp;
 
@@ -322,8 +369,8 @@ mbc_case_fold(OnigCaseFoldType flag ARG_UNUSED,
     OnigCodePoint code;
     int len;
 
-    code = get_lower_case(mbc_to_code(p, end));
-    len = code_to_mbc(code, lower);
+    code = get_lower_case(mbc_to_code(p, end, enc));
+    len = code_to_mbc(code, lower, enc);
     (*pp) += len;
     return len; /* return byte length of converted char to lower */
   }
@@ -334,7 +381,8 @@ static int
 is_mbc_ambiguous(OnigCaseFoldType flag,
 		 const UChar** pp, const UChar* end)
 {
-  return onigenc_mbn_is_mbc_ambiguous(ONIG_ENCODING_SELF, flag, pp, end);
+  return onigenc_mbn_is_mbc_ambiguous(enc, flag, pp, end);
+
 }
 #endif
 
@@ -355,7 +403,7 @@ is_code_ctype(OnigCodePoint code, unsigned int ctype)
 #endif
 
 static UChar*
-left_adjust_char_head(const UChar* start, const UChar* s)
+left_adjust_char_head(const UChar* start, const UChar* s, const UChar* end, OnigEncoding enc)
 {
   const UChar *p;
   int len;
@@ -371,14 +419,14 @@ left_adjust_char_head(const UChar* start, const UChar* s)
       }
     }
   }
-  len = mbc_enc_len(p);
+  len = mbc_enc_len(p, end, enc);
   if (p + len > s) return (UChar* )p;
   p += len;
   return (UChar* )(p + ((s - p) & ~1));
 }
 
 static int
-is_allowed_reverse_match(const UChar* s, const UChar* end ARG_UNUSED)
+is_allowed_reverse_match(const UChar* s, const UChar* end, OnigEncoding enc ARG_UNUSED)
 {
   const UChar c = *s;
   return (SJIS_ISMB_TRAIL(c) ? FALSE : TRUE);
@@ -442,9 +490,9 @@ static const OnigCodePoint CR_Cyrillic[] = {
 #include "enc/jis/props.h"
 
 static int
-property_name_to_ctype(OnigEncoding enc, UChar* p, UChar* end)
+property_name_to_ctype(OnigEncoding enc, const UChar* p, const UChar* end)
 {
-  UChar *s = p, *e = end;
+  const UChar *s = p, *e = end;
   const struct enc_property *prop =
     onig_jis_property((const char* )s, (unsigned int )(e - s));
 
@@ -456,14 +504,14 @@ property_name_to_ctype(OnigEncoding enc, UChar* p, UChar* end)
 }
 
 static int
-is_code_ctype(OnigCodePoint code, unsigned int ctype)
+is_code_ctype(OnigCodePoint code, unsigned int ctype, OnigEncoding enc)
 {
   if (ctype <= ONIGENC_MAX_STD_CTYPE) {
     if (code < 128)
       return ONIGENC_IS_ASCII_CODE_CTYPE(code, ctype);
     else {
       if (CTYPE_IS_WORD_GRAPH_PRINT(ctype)) {
-	return (code_to_mbclen(code) > 1 ? TRUE : FALSE);
+	return TRUE;
       }
     }
   }
@@ -480,7 +528,7 @@ is_code_ctype(OnigCodePoint code, unsigned int ctype)
 
 static int
 get_ctype_code_range(OnigCtype ctype, OnigCodePoint* sb_out,
-		     const OnigCodePoint* ranges[])
+		     const OnigCodePoint* ranges[], OnigEncoding enc ARG_UNUSED)
 {
   if (ctype <= ONIGENC_MAX_STD_CTYPE) {
     return ONIG_NO_SUPPORT_CONFIG;
@@ -497,28 +545,8 @@ get_ctype_code_range(OnigCtype ctype, OnigCodePoint* sb_out,
   }
 }
 
-#ifdef ENC_CP932
-OnigEncodingType OnigEncodingCP932 = {
-  mbc_enc_len,
-  "CP932",       /* name */
-  2,             /* max byte length */
-  1,             /* min byte length */
-  onigenc_is_mbc_newline_0x0a,
-  mbc_to_code,
-  code_to_mbclen,
-  code_to_mbc,
-  mbc_case_fold,
-  apply_all_case_fold,
-  get_case_fold_codes_by_str,
-  property_name_to_ctype,
-  is_code_ctype,
-  get_ctype_code_range,
-  left_adjust_char_head,
-  is_allowed_reverse_match,
-  ONIGENC_FLAG_NONE,
-};
-#else
-OnigEncodingType OnigEncodingSJIS = {
+#ifndef ENC_CP932
+OnigEncodingDefine(shift_jis, Shift_JIS) = {
   mbc_enc_len,
   "Shift_JIS",   /* name */
   2,             /* max byte length */
@@ -535,6 +563,22 @@ OnigEncodingType OnigEncodingSJIS = {
   get_ctype_code_range,
   left_adjust_char_head,
   is_allowed_reverse_match,
+  onigenc_ascii_only_case_map,
+  0,
   ONIGENC_FLAG_NONE,
 };
+/*
+ * Name: Shift_JIS
+ * MIBenum: 17
+ * Link: http://www.iana.org/assignments/character-sets
+ * Link: http://ja.wikipedia.org/wiki/Shift_JIS
+ */
+
+/*
+ * Name: MacJapanese
+ * Link: http://unicode.org/Public/MAPPINGS/VENDORS/APPLE/JAPANESE.TXT
+ * Link: http://ja.wikipedia.org/wiki/MacJapanese
+ */
+ENC_REPLICATE("MacJapanese", "Shift_JIS")
+ENC_ALIAS("MacJapan", "MacJapanese")
 #endif

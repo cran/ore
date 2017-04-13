@@ -3,12 +3,20 @@
 #include <R.h>
 #include <Rdefines.h>
 #include <Rinternals.h>
+#include <R_ext/Rdynload.h>
 
-#include "oniguruma.h"
+#include "onigmo.h"
+#include "compile.h"
+#include "escape.h"
+#include "match.h"
+#include "print.h"
+#include "split.h"
+#include "subst.h"
 #include "zzz.h"
 
 extern regex_t *group_number_regex;
 extern regex_t *group_name_regex;
+extern OnigSyntaxType *modified_ruby_syntax;
 
 // R wrapper function for onig_init(); called when the package is loaded
 SEXP ore_init ()
@@ -38,6 +46,11 @@ SEXP ore_init ()
         error("Oniguruma compile: %s\n", message);
     }
     
+    // Use the default (Ruby) syntax, with one adjustment: we want \d, \s and \w to work across scripts
+    modified_ruby_syntax = (OnigSyntaxType *) malloc(sizeof(OnigSyntaxType));
+    onig_copy_syntax(modified_ruby_syntax, ONIG_SYNTAX_RUBY);
+    ONIG_OPTION_OFF(modified_ruby_syntax->options, ONIG_OPTION_ASCII_RANGE);
+    
     return R_NilValue;
 }
 
@@ -46,8 +59,28 @@ SEXP ore_done ()
 {
     onig_free(group_number_regex);
     onig_free(group_name_regex);
+    free(modified_ruby_syntax);
     
     onig_end();
     
     return R_NilValue;
+}
+
+static R_CallMethodDef callMethods[] = {
+    { "ore_build",          (DL_FUNC) &ore_build,           4 },
+    { "ore_escape",         (DL_FUNC) &ore_escape,          1 },
+    { "ore_search_all",     (DL_FUNC) &ore_search_all,      6 },
+    { "ore_print_match",    (DL_FUNC) &ore_print_match,     5 },
+    { "ore_split",          (DL_FUNC) &ore_split,           4 },
+    { "ore_substitute_all", (DL_FUNC) &ore_substitute_all,  6 },
+    { "ore_init",           (DL_FUNC) &ore_init,            0 },
+    { "ore_done",           (DL_FUNC) &ore_done,            0 },
+    { NULL, NULL, 0 }
+};
+
+void R_init_ore (DllInfo *info)
+{
+   R_registerRoutines(info, NULL, callMethods, NULL, NULL);
+   R_useDynamicSymbols(info, FALSE);
+   R_forceSymbols(info, TRUE);
 }
