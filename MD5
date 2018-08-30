@@ -1,7 +1,7 @@
-ae99275c7b33e3b0ca5e5d1b3c09f270 *DESCRIPTION
+b3e89d033b3d5c7151f767a7953a8591 *DESCRIPTION
 b0727bc2ced282c09ec3d850d0bfa6a2 *LICENCE
 b3b368f8f6209344fedd0a80c87ea90d *NAMESPACE
-9834d843dcf003e5205c8636fe8b7afa *NEWS
+6551653f0fe2a2fd618ddb8df6ea0933 *NEWS
 edc3c177f41e58ce0af8ef52d2038022 *R/dict.R
 88a6468ee258a69c814725fe9fe8b4ea *R/es.R
 eae513394b785d74007aedbadaa47a44 *R/file.R
@@ -27,7 +27,7 @@ d3925eacd7f1ee78776b4629d8bfbda3 *man/ore.Rd
 ddfe311ef2e988ac46d128804204e1b3 *man/ore.split.Rd
 ed12249a9b65f40b80c59e8ec452bc7b *man/ore.subst.Rd
 74d83b815a2e5f43f3b121a8ffdbb417 *src/Makevars
-ef2103523a85fa3f1e4bdea854a32e18 *src/compile.c
+215eeb3279a8416b16965e2e69f245a4 *src/compile.c
 6fa0370d5027a965d2e8617f65c5472f *src/compile.h
 5e19a2bcfc3df95d4dbc5fe850e3e3fa *src/escape.c
 7f7a151fa23ccc75f0d83532734bfd15 *src/escape.h
@@ -101,11 +101,11 @@ b6d2e7518f63a8a728508b64337c1987 *src/onig/regtrav.c
 5b2feb8afb0db89627abdd14f53ac8e9 *src/onig/regversion.c
 2dd6c00edf4a57eaeb66a14b56560017 *src/onig/st.c
 81625c63feaffe6822d6647245ee2634 *src/onig/st.h
-12fd7b9f6eb48f1bda36488987f18ade *src/print.c
+17fb8344fe609bd4f72f33f813754696 *src/print.c
 c2c9246c93975783080649c1b018e3bc *src/print.h
 eb293c69c99f7a88b8c887b561d1597b *src/split.c
 c3687bcec5a3abda462032cedef4b161 *src/split.h
-a60436ff5315809dcf7a4ffd3f552b0b *src/subst.c
+38d86cf8820421200199cff9965f7cda *src/subst.c
 623e870512c060eccd9fabed3f2acd40 *src/subst.h
 7c471eed69d375dde34b47dbb9e606dc *src/wcwidth.c
 70bd12156328b9c8f3f2e0ea5101e30d *src/wcwidth.h
