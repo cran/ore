@@ -32,7 +32,8 @@ as R code in the specified environment, and then its value is substituted
 back into the string. The literal string \code{"#{}"} can be obtained by
 escaping the hash character, viz. \code{"\\\\#{}"}. The block may contain
 multiple R expressions, separated by semicolons, but may not contain
-additional braces.
+additional braces. Its value will be coerced to character mode, and if the
+result has multiple elements then the source string will be duplicated.
 }
 \examples{
 es("pi is #{pi}")
@@ -41,6 +42,5 @@ es("The square-root of pi is approximately #{sqrt(pi)}", signif=4)
 es("1/(1+x) for x=3 is #{x <- 3; 1/(1+x)}")
 }
 \seealso{
-\code{\link{ore.subst}}
+\code{\link{ore_subst}}
 }
-

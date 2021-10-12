@@ -3,9 +3,9 @@
 #include <R.h>
 #include <Rdefines.h>
 #include <Rinternals.h>
-#include <R_ext/Riconv.h>
 
 #include "compile.h"
+#include "text.h"
 #include "match.h"
 
 // Not strictly part of the API, but needed for implementing the "start" argument
@@ -13,9 +13,6 @@ extern UChar * onigenc_step (OnigEncoding enc, const UChar *p, const UChar *end,
 
 // Block size for match data; memory is allocated in chunks this big
 #define MATCH_BLOCK_SIZE    128
-
-// Initial buffer size when reading from a file; scales exponentially
-#define FILE_BUFFER_SIZE    1024
 
 // Allocate memory for a rawmatch_t object with capacity one block, and its contents
 rawmatch_t * ore_rawmatch_alloc (const int n_regions)
@@ -34,25 +31,6 @@ rawmatch_t * ore_rawmatch_alloc (const int n_regions)
     match->matches = (char **) R_alloc(len, sizeof(char *));
     
     return match;
-}
-
-// Extend a vector to hold more values
-// NB: This function is less efficient than standard C realloc(), because it always results in a copy, but using R_alloc simplifies things. The R API function S_realloc() is closely related, but seems to exist only "for compatibility with older versions of S", and zeroes out the extra memory, which is unnecessary here.
-char * ore_realloc (const void *ptr, const size_t new_len, const size_t old_len, const int element_size)
-{
-    if (ptr == NULL)
-        return (char *) R_alloc(new_len, element_size);
-    else if (new_len <= old_len)
-        return (char *) ptr;
-    else
-    {
-        char *new_ptr;
-        const size_t old_byte_len = old_len * element_size;
-        
-        new_ptr = R_alloc(new_len, element_size);
-        memcpy(new_ptr, (const char *) ptr, old_byte_len);
-        return new_ptr;
-    }
 }
 
 // Extend an existing rawmatch_t object, increasing its capacity by MATCH_BLOCK_SIZE and reallocating memory accordingly
@@ -194,46 +172,20 @@ void ore_int_vector (SEXP vec, const int *data, const int n_regions, const int n
         ptr[i] = data[i*n_regions] + increment;
 }
 
-// Wrapper around Riconv, to convert between encodings
-const char * ore_iconv (void *iconv_handle, const char *old)
-{
-    if (iconv_handle)
-    {
-        size_t old_size = strlen(old);
-        size_t new_size = old_size * 6;
-        char *buffer = R_alloc(new_size+1, 1);
-        char *buffer_start = buffer;
-        Riconv(iconv_handle, &old, &old_size, &buffer, &new_size);
-        *buffer = '\0';
-        return buffer_start;
-    }
-    else
-        return old;
-}
-
 // Copy string data from a rawmatch_t to an R vector
-void ore_char_vector (SEXP vec, const char **data, const int n_regions, const int n_matches, cetype_t encoding, const char *old_enc_name)
+void ore_char_vector (SEXP vec, const char **data, const int n_regions, const int n_matches, encoding_t *encoding)
 {
-    void *iconv_handle = NULL;
-    if (old_enc_name != NULL)
-    {
-        if (ore_strnicmp(old_enc_name, "native.enc", 10) == 0)
-            iconv_handle = Riconv_open("UTF-8", "");
-        else
-            iconv_handle = Riconv_open("UTF-8", old_enc_name);
-        encoding = CE_UTF8;
-    }
+    void *iconv_handle = ore_iconv_handle(encoding);
     
     for (int i=0; i<n_matches; i++)
     {
         if (data[i*n_regions] == NULL)
-            SET_STRING_ELT(vec, i, mkCharCE("",encoding));
+            SET_STRING_ELT(vec, i, mkCharCE("",encoding->r_enc));
         else
-            SET_STRING_ELT(vec, i, mkCharCE(ore_iconv(iconv_handle,data[i*n_regions]), encoding));
+            SET_STRING_ELT(vec, i, mkCharCE(ore_iconv(iconv_handle,data[i*n_regions]), encoding->r_enc));
     }
     
-    if (iconv_handle)
-        Riconv_close(iconv_handle);
+    ore_iconv_done(iconv_handle);
 }
 
 // Copy integer data for groups into an R matrix
@@ -260,33 +212,28 @@ void ore_int_matrix (SEXP mat, const int *data, const int n_regions, const int n
 }
 
 // Copy string data from groups into an R matrix
-void ore_char_matrix (SEXP mat, const char **data, const int n_regions, const int n_matches, const SEXP col_names, cetype_t encoding, const char *old_enc_name)
+void ore_char_matrix (SEXP mat, const char **data, const int n_regions, const int n_matches, const int index, const SEXP col_names, encoding_t *encoding)
 {
-    void *iconv_handle = NULL;
-    if (old_enc_name != NULL)
-    {
-        if (ore_strnicmp(old_enc_name, "native.enc", 10) == 0)
-            iconv_handle = Riconv_open("UTF-8", "");
-        else
-            iconv_handle = Riconv_open("UTF-8", old_enc_name);
-        encoding = CE_UTF8;
-    }
+    void *iconv_handle = ore_iconv_handle(encoding);
     
     for (int i=0; i<n_matches; i++)
     {
+        if (index >= 0 && i != index)
+            continue;
+        
         for (int j=1; j<n_regions; j++)
         {
             // Missing groups are assigned NA
             const char *element = data[i*n_regions + j];
+            const int ii = index < 0 ? i : 0;
             if (element == NULL)
-                SET_STRING_ELT(mat, (j-1)*n_matches + i, NA_STRING);
+                SET_STRING_ELT(mat, (j-1)*n_matches + ii, NA_STRING);
             else
-                SET_STRING_ELT(mat, (j-1)*n_matches + i, mkCharCE(ore_iconv(iconv_handle,element), encoding));
+                SET_STRING_ELT(mat, (j-1)*n_matches + ii, mkCharCE(ore_iconv(iconv_handle,element), encoding->r_enc));
         }
     }
     
-    if (iconv_handle)
-        Riconv_close(iconv_handle);
+    ore_iconv_done(iconv_handle);
     
     // Set column names if supplied
     if (!isNull(col_names))
@@ -301,61 +248,6 @@ void ore_char_matrix (SEXP mat, const char **data, const int n_regions, const in
     }
 }
 
-// Read text from a file into a buffer
-file_contents_t * ore_read_file (const char *filename, const int buffer_size_level)
-{
-    FILE *fp = fopen(filename, "rb");
-    if (fp == NULL)
-        error("Could not open file %s", filename);
-    
-    size_t old_buffer_size = 0;
-    size_t buffer_size = FILE_BUFFER_SIZE;
-    if (buffer_size_level > 0)
-    {
-        for (int i=1; i<buffer_size_level; i++)
-            buffer_size *= 2;
-    }
-    
-    char *buffer = (char *) R_alloc(buffer_size, 1);
-    char *ptr = buffer;
-    Rboolean more = FALSE;
-    
-    if (buffer_size_level > 0)
-    {
-        size_t bytes_read = fread(ptr, 1, buffer_size, fp);
-        ptr += bytes_read;
-        more = (bytes_read == buffer_size);
-    }
-    else
-    {
-        while (TRUE)
-        {
-            size_t n = buffer_size - old_buffer_size;
-            size_t bytes_read = fread(ptr, 1, n, fp);
-            if (bytes_read < n)
-            {
-                ptr += bytes_read;
-                break;
-            }
-            else
-            {
-                old_buffer_size = buffer_size;
-                buffer_size *= 2;
-                buffer = (char *) ore_realloc(buffer, buffer_size, old_buffer_size, 1);
-                ptr = buffer + old_buffer_size;
-            }
-        }
-    }
-    
-    fclose(fp);
-    
-    file_contents_t *contents = (file_contents_t *) R_alloc(1, sizeof(file_contents_t));
-    contents->start = buffer;
-    contents->end = ptr;
-    contents->more = more;
-    return contents;
-}
-
 // Vectorised wrapper around ore_search(), which handles the R API stuff
 SEXP ore_search_all (SEXP regex_, SEXP text_, SEXP all_, SEXP start_, SEXP simplify_, SEXP incremental_)
 {
@@ -363,22 +255,19 @@ SEXP ore_search_all (SEXP regex_, SEXP text_, SEXP all_, SEXP start_, SEXP simpl
     SEXP group_names = getAttrib(regex_, install("groupNames"));
     const Rboolean all = asLogical(all_) == TRUE;
     const Rboolean simplify = asLogical(simplify_) == TRUE;
-    const Rboolean incremental = asLogical(incremental_) == TRUE;
+    const Rboolean incremental = (asLogical(incremental_) == TRUE) && !all;
     int *start = INTEGER(start_);
     
     // Check whether the text argument is actually a file path
-    Rboolean using_file = FALSE;
-    SEXP textClass = getAttrib(text_, R_ClassSymbol);
-    if (length(textClass) > 0 && strcmp(CHAR(STRING_ELT(textClass,0)), "orefile") == 0)
-        using_file = TRUE;
-    else
+    const Rboolean using_file = inherits(text_, "orefile") || inherits(text_, "connection");
+    if (!using_file)
         PROTECT(text_ = AS_CHARACTER(text_));
     
-    // Retrieve the regex
-    regex_t *regex = ore_retrieve(regex_, text_, using_file);
+    // Retrieve the text and the regex
+    text_t *text = ore_text(text_);
+    regex_t *regex = ore_retrieve(regex_, text->encoding);
     
-    // Obtain the lengths of the text and start vectors (the latter will be recycled if necessary)
-    const int text_len = using_file ? 1 : length(text_);
+    // Obtain the length of the start vector (which will be recycled if necessary)
     const int start_len = length(start_);
     
     // Check for sensible input
@@ -386,60 +275,46 @@ SEXP ore_search_all (SEXP regex_, SEXP text_, SEXP all_, SEXP start_, SEXP simpl
         error("The vector of starting positions is empty");
     
     SEXP results;
-    PROTECT(results = NEW_LIST(text_len));
+    PROTECT(results = NEW_LIST(text->length));
     
     // Step through each string to be searched
-    for (int i=0; i<text_len; i++)
+    for (size_t i=0; i<text->length; i++)
     {
+        text_element_t *text_element = NULL;
         rawmatch_t *raw_match;
-        cetype_t encoding = CE_NATIVE;
-        file_contents_t *contents;
-        const char *file_encoding_string = NULL;
         
-        if (using_file)
+        // Retrieve the text element and check its encoding is compatible with the regex
+        text_element = ore_text_element(text, i, incremental, text_element);
+        if (text_element == NULL)
         {
-            // Check the file's encoding
-            SEXP encoding_name = getAttrib(text_, install("encoding"));
-            file_encoding_string = CHAR(STRING_ELT(encoding_name, 0));
-            OnigEncoding file_encoding = ore_name_to_onig_enc(file_encoding_string);
-            if (file_encoding != regex->enc)
-                warning("File encoding does not match the regex");
-            
-            // Do the match
-            if (incremental && !all)
-            {
-                for (int j=1; ; j++)
-                {
-                    contents = ore_read_file(CHAR(STRING_ELT(text_, 0)), j);
-                    raw_match = ore_search(regex, contents->start, contents->end, all, (size_t) start[0] - 1);
-                    
-                    size_t end_of_last_match = 0;
-                    if (raw_match != NULL)
-                        end_of_last_match = (size_t) raw_match->byte_offsets[raw_match->n_matches-1] + raw_match->byte_lengths[raw_match->n_matches-1];
-                    
-                    if (!contents->more || (raw_match != NULL && end_of_last_match < (contents->end - contents->start)))
-                        break;
-                }
-            }
-            else
-            {
-                contents = ore_read_file(CHAR(STRING_ELT(text_, 0)), 0);
-                raw_match = ore_search(regex, contents->start, contents->end, all, (size_t) start[0] - 1);
-            }
+            SET_ELEMENT(results, i, R_NilValue);
+            continue;
         }
-        else
+        else if (!ore_consistent_encodings(text_element->encoding->onig_enc, regex->enc))
         {
-            // Check the string's encoding
-            encoding = getCharCE(STRING_ELT(text_, i));
-            if ((encoding == CE_UTF8 && regex->enc == ONIG_ENCODING_ISO_8859_1) || (encoding == CE_LATIN1 && regex->enc == ONIG_ENCODING_UTF8))
-            {
-                warning("Encoding of text element %d does not match the regex", i+1);
-                SET_ELEMENT(results, i, R_NilValue);
-                continue;
-            }
+            warning("Encoding of text element %d does not match the regex", i+1);
+            SET_ELEMENT(results, i, R_NilValue);
+            continue;
+        }
         
-            // Do the match
-            raw_match = ore_search(regex, CHAR(STRING_ELT(text_,i)), NULL, all, (size_t) start[i % start_len] - 1);
+        // Do the match
+        raw_match = ore_search(regex, text_element->start, text_element->end, all, (size_t) start[i % start_len] - 1);
+        
+        // If there is more text to come from the source, and there is no match so far, or the match may be incomplete, extract more and continue
+        while (text_element->incomplete)
+        {
+            if (raw_match != NULL)
+            {
+                // If we've seen a match but it runs right up to the end of the text, continue in case we've missed some
+                // NB: This is an imperfect heuristic - it isn't hard to design text/regex pairs that mislead it - but the user can always disable incremental search
+                const size_t end_of_last_match = (size_t) raw_match->byte_offsets[raw_match->n_matches - 1] + raw_match->byte_lengths[raw_match->n_matches - 1];
+                if (end_of_last_match < (text_element->end - text_element->start))
+                    break;
+            }
+            
+            // Ask again for the element, to get more of it, and rerun the match
+            text_element = ore_text_element(text, i, incremental, text_element);
+            raw_match = ore_search(regex, text_element->start, text_element->end, all, (size_t) start[i % start_len] - 1);
         }
         
         // Assign NULL if there's no match, otherwise build up an "orematch" object
@@ -447,11 +322,12 @@ SEXP ore_search_all (SEXP regex_, SEXP text_, SEXP all_, SEXP start_, SEXP simpl
             SET_ELEMENT(results, i, R_NilValue);
         else
         {
-            SEXP result, result_names, text, n_matches, offsets, byte_offsets, lengths, byte_lengths, matches;
+            SEXP result, result_names, result_text, n_matches, offsets, byte_offsets, lengths, byte_lengths, matches;
+            const Rboolean have_groups = (raw_match->n_regions >= 2);
             
             // Allocate memory for data structures
-            PROTECT(result = NEW_LIST(raw_match->n_regions < 2 ? 7 : 8));
-            PROTECT(result_names = NEW_CHARACTER(raw_match->n_regions < 2 ? 7 : 8));
+            PROTECT(result = NEW_LIST(have_groups ? 9 : 8));
+            PROTECT(result_names = NEW_CHARACTER(have_groups ? 9 : 8));
             
             // List element names
             SET_STRING_ELT(result_names, 0, mkChar("text"));
@@ -465,9 +341,9 @@ SEXP ore_search_all (SEXP regex_, SEXP text_, SEXP all_, SEXP start_, SEXP simpl
             // Convert elements of the raw match data to R vectors
             // Note that the text can't easily be returned from a file because offsets and lengths may be wrong after translation between encodings
             if (using_file)
-                text = R_NilValue;
+                PROTECT(result_text = ScalarString(ore_text_element_to_rchar(text_element)));
             else
-                PROTECT(text = ScalarString(STRING_ELT(text_,i)));
+                PROTECT(result_text = ScalarString(STRING_ELT(text_,i)));
             PROTECT(n_matches = ScalarInteger(raw_match->n_matches));
             PROTECT(offsets = NEW_INTEGER(raw_match->n_matches));
             ore_int_vector(offsets, raw_match->offsets, raw_match->n_regions, raw_match->n_matches, 1);
@@ -478,13 +354,10 @@ SEXP ore_search_all (SEXP regex_, SEXP text_, SEXP all_, SEXP start_, SEXP simpl
             PROTECT(byte_lengths = NEW_INTEGER(raw_match->n_matches));
             ore_int_vector(byte_lengths, raw_match->byte_lengths, raw_match->n_regions, raw_match->n_matches, 0);
             PROTECT(matches = NEW_CHARACTER(raw_match->n_matches));
-            if (using_file)
-                ore_char_vector(matches, (const char **) raw_match->matches, raw_match->n_regions, raw_match->n_matches, encoding, file_encoding_string);
-            else
-                ore_char_vector(matches, (const char **) raw_match->matches, raw_match->n_regions, raw_match->n_matches, encoding, NULL);
+            ore_char_vector(matches, (const char **) raw_match->matches, raw_match->n_regions, raw_match->n_matches, text_element->encoding);
             
             // Put everything in place
-            SET_ELEMENT(result, 0, text);
+            SET_ELEMENT(result, 0, result_text);
             SET_ELEMENT(result, 1, n_matches);
             SET_ELEMENT(result, 2, offsets);
             SET_ELEMENT(result, 3, byte_offsets);
@@ -492,8 +365,8 @@ SEXP ore_search_all (SEXP regex_, SEXP text_, SEXP all_, SEXP start_, SEXP simpl
             SET_ELEMENT(result, 5, byte_lengths);
             SET_ELEMENT(result, 6, matches);
             
-            // Unprotect everything back to "text"
-            UNPROTECT(using_file ? 6 : 7);
+            // Unprotect everything back to "result_text"
+            UNPROTECT(7);
             
             // If there are groups present, extract them
             if (raw_match->n_regions > 1)
@@ -519,10 +392,7 @@ SEXP ore_search_all (SEXP regex_, SEXP text_, SEXP all_, SEXP start_, SEXP simpl
                 PROTECT(byte_lengths = allocMatrix(INTSXP, raw_match->n_matches, raw_match->n_regions-1));
                 ore_int_matrix(byte_lengths, raw_match->byte_lengths, raw_match->n_regions, raw_match->n_matches, group_names, 0);
                 PROTECT(matches = allocMatrix(STRSXP, raw_match->n_matches, raw_match->n_regions-1));
-                if (using_file)
-                    ore_char_matrix(matches, (const char **) raw_match->matches, raw_match->n_regions, raw_match->n_matches, group_names, encoding, file_encoding_string);
-                else
-                    ore_char_matrix(matches, (const char **) raw_match->matches, raw_match->n_regions, raw_match->n_matches, group_names, encoding, NULL);
+                ore_char_matrix(matches, (const char **) raw_match->matches, raw_match->n_regions, raw_match->n_matches, -1, group_names, text_element->encoding);
                 
                 // Put everything in place
                 SET_ELEMENT(groups, 0, offsets);
@@ -539,18 +409,28 @@ SEXP ore_search_all (SEXP regex_, SEXP text_, SEXP all_, SEXP start_, SEXP simpl
                 UNPROTECT(7);
             }
             
+            // Record the source encoding
+            SEXP source_encoding = PROTECT(mkString(text->encoding->name));
+            SET_ELEMENT(result, have_groups ? 8 : 7, source_encoding);
+            SET_STRING_ELT(result_names, have_groups ? 8 : 7, mkChar("sourceEncoding"));
+            
             // Set names and class, and insert into full list
             setAttrib(result, R_NamesSymbol, result_names);
             setAttrib(result, R_ClassSymbol, mkString("orematch"));
             SET_ELEMENT(results, i, result);
-            UNPROTECT(2);
+            UNPROTECT(3);
         }
     }
+    
+    if (text->source == VECTOR_SOURCE)
+        setAttrib(results, R_NamesSymbol, getAttrib(text->object,R_NamesSymbol));
+    
+    ore_text_done(text);
     
     UNPROTECT(using_file ? 1 : 2);
     
     // Return just the first (and only) element of the full list, if requested
-    if (simplify && text_len == 1)
+    if (simplify && text->length == 1)
         return VECTOR_ELT(results, 0);
     else
     {

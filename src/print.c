@@ -6,32 +6,54 @@
 #include <Rinternals.h>
 
 #include "compile.h"
+#include "text.h"
 #include "match.h"
 #include "print.h"
 #include "wcwidth.h"
 
-extern UChar * onigenc_step_back (OnigEncoding enc, const OnigUChar* start, const OnigUChar* s, const OnigUChar* end, int n);
+extern UChar * onigenc_step (OnigEncoding enc, const UChar *p, const UChar *end, int n);
+
+typedef struct {
+    Rboolean    use_colour;
+    int         width;
+    int         max_lines;
+    int         lines_done;
+    int         n_matches;
+    
+    Rboolean    in_match;
+    int         loc;
+    int         current_match;
+    char        current_match_string[12];
+    char       *current_match_loc;
+    
+    char       *match;
+    char       *match_start;
+    char       *context;
+    char       *context_start;
+    char       *number;
+    char       *number_start;
+} printstate_t;
 
 // Extract an element of an R list by name
-SEXP ore_get_list_element (SEXP list, const char *name)
+static SEXP ore_get_list_element (SEXP list, const char *name)
 {
     SEXP element = R_NilValue;
     SEXP names = getAttrib(list, R_NamesSymbol);
     
     for (int i=0; i<length(names); i++)
     {
-    	if (strcmp(CHAR(STRING_ELT(names,i)), name) == 0)
+        if (strcmp(CHAR(STRING_ELT(names,i)), name) == 0)
         {
-    	   element = VECTOR_ELT(list, i);
-    	   break;
-       }
+            element = VECTOR_ELT(list, i);
+            break;
+        }
     }
     
     return element;
 }
 
 // Create a printstate_t object, which keeps track of various things
-printstate_t * ore_alloc_printstate (const int context, const int width, const int max_lines, const Rboolean use_colour, const int n_matches, const int max_enc_len)
+static printstate_t * ore_printstate (const int context, const int width, const int max_lines, const Rboolean use_colour, const int n_matches, const int max_enc_len)
 {
     printstate_t *state = (printstate_t *) R_alloc(1, sizeof(printstate_t));
     
@@ -79,13 +101,13 @@ printstate_t * ore_alloc_printstate (const int context, const int width, const i
 }
 
 // Can more lines be printed, or should we stop?
-Rboolean ore_more_lines (printstate_t *state)
+static Rboolean ore_more_lines (printstate_t *state)
 {
     return (state->max_lines == 0 || state->lines_done < state->max_lines);
 }
 
 // This function actually prints a line of buffered text, with annotations, to the terminal
-void ore_print_line (printstate_t *state)
+static void ore_print_line (printstate_t *state)
 {
     // Forget it if the buffer is empty, or we're already printed as many lines as are allowed
     if (state->loc == 0 || !ore_more_lines(state))
@@ -139,7 +161,7 @@ void ore_print_line (printstate_t *state)
 }
 
 // Add a byte to the match (or context), updating other lines appropriately
-void ore_do_push_byte (printstate_t *state, const char byte, const int width)
+static void ore_do_push_byte (printstate_t *state, const char byte, const int width)
 {
     if (state->in_match || state->use_colour)
     {
@@ -186,7 +208,7 @@ void ore_do_push_byte (printstate_t *state, const char byte, const int width)
 }
 
 // Switch from inside to outside match state, or vice versa
-void ore_switch_state (printstate_t *state, Rboolean match)
+static void ore_switch_state (printstate_t *state, Rboolean match)
 {
     if (match && !state->in_match)
     {
@@ -221,7 +243,7 @@ void ore_switch_state (printstate_t *state, Rboolean match)
 }
 
 // Push a byte to the buffers, starting a new line if there isn't space for it
-void ore_push_byte (printstate_t *state, const char byte, const int width)
+static void ore_push_byte (printstate_t *state, const char byte, const int width)
 {
     // Print the line and reset the buffers if there isn't space
     if (state->loc + width >= state->width)
@@ -249,7 +271,7 @@ void ore_push_byte (printstate_t *state, const char byte, const int width)
 }
 
 // Push a fixed number of (possibly multibyte) characters to the buffers
-UChar * ore_push_chars (printstate_t *state, UChar *ptr, int n, OnigEncoding encoding)
+static UChar * ore_push_chars (printstate_t *state, UChar *ptr, int n, OnigEncoding encoding)
 {
     for (int i=0; i<n; i++)
     {
@@ -287,26 +309,22 @@ SEXP ore_print_match (SEXP match, SEXP context_, SEXP width_, SEXP max_lines_, S
     // NB: There is only one string in the object, since each searched string produces a new "orematch" object
     SEXP text_ = ore_get_list_element(match, "text");
     const UChar *text = (const UChar *) CHAR(STRING_ELT(text_, 0));
-    OnigEncoding encoding = ore_r_to_onig_enc(getCharCE(STRING_ELT(text_, 0)));
+    cetype_t r_encoding = getCharCE(STRING_ELT(text_, 0));
+    encoding_t *encoding = ore_encoding(NULL, NULL, &r_encoding);
     const UChar *end = text + strlen(CHAR(STRING_ELT(text_, 0)));
-    size_t text_len = onigenc_strlen_null(encoding, text);
+    size_t text_len = onigenc_strlen_null(encoding->onig_enc, text);
     
     // Retrieve offsets and convert to C convention by subtracting 1
     const int *offsets_ = (const int *) INTEGER(ore_get_list_element(match, "offsets"));
-    const int *byte_offsets_ = (const int *) INTEGER(ore_get_list_element(match, "byteOffsets"));
     int *offsets = (int *) R_alloc(n_matches, sizeof(int));
-    int *byte_offsets = (int *) R_alloc(n_matches, sizeof(int));
     for (int i=0; i<n_matches; i++)
-    {
         offsets[i] = offsets_[i] - 1;
-        byte_offsets[i] = byte_offsets_[i] - 1;
-    }
     
     // Retrieve match lengths
     const int *lengths = (const int *) INTEGER(ore_get_list_element(match, "lengths"));
     
     // Create the print state object
-    printstate_t *state = ore_alloc_printstate(context, width, max_lines, use_colour, n_matches, encoding->max_enc_len);
+    printstate_t *state = ore_printstate(context, width, max_lines, use_colour, n_matches, encoding->onig_enc->max_enc_len);
     
     // Print precontext, matched text, and postcontext for each match
     size_t start = 0;
@@ -320,23 +338,18 @@ SEXP ore_print_match (SEXP match, SEXP context_, SEXP width_, SEXP max_lines_, S
         {
             // There is more precontext than we want, so truncate (with an ellipsis)
             precontext_len = context;
-            ptr = onigenc_step_back(encoding, text, text+byte_offsets[i], end, precontext_len);
             for (int j=0; j<3; j++)
                 ore_push_byte(state, '.', 1);
         }
-        else if (offsets[i] > start)
-        {
-            // There is some precontext
-            precontext_len = offsets[i] - start;
-            ptr = onigenc_step_back(encoding, text, text+byte_offsets[i], end, precontext_len);
-        }
         else
-            ptr = (UChar *) text + byte_offsets[i];
+            precontext_len = offsets[i] - start;
+        
+        ptr = onigenc_step(encoding->onig_enc, text, end, offsets[i] - precontext_len);
         
         // Push precontext, switch to match mode, print matched text, and then switch back
-        ptr = ore_push_chars(state, ptr, precontext_len, encoding);
+        ptr = ore_push_chars(state, ptr, precontext_len, encoding->onig_enc);
         ore_switch_state(state, TRUE);
-        ptr = ore_push_chars(state, ptr, lengths[i], encoding);
+        ptr = ore_push_chars(state, ptr, lengths[i], encoding->onig_enc);
         ore_switch_state(state, FALSE);
         
         // Update starting position for next loop
@@ -363,7 +376,7 @@ SEXP ore_print_match (SEXP match, SEXP context_, SEXP width_, SEXP max_lines_, S
         }
         
         // Push the postcontext
-        ptr = ore_push_chars(state, ptr, postcontext_len, encoding);
+        ptr = ore_push_chars(state, ptr, postcontext_len, encoding->onig_enc);
         
         // Update the start position to the end of the postcontext
         start += postcontext_len;
