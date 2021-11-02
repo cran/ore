@@ -9,7 +9,7 @@
 #include "text.h"
 
 // If R is recent enough for R_GetConnection() to be available, and the connections API is the expected version, support reading from connections
-#if defined(R_VERSION) && R_VERSION >= R_Version(3,3,0) && defined(R_CONNECTIONS_VERSION) && R_CONNECTIONS_VERSION == 1
+#if !defined(DISABLE_CONNECTIONS) && defined(R_VERSION) && R_VERSION >= R_Version(3,3,0) && defined(R_CONNECTIONS_VERSION) && R_CONNECTIONS_VERSION == 1
 #define USING_CONNECTIONS
 #endif
 
@@ -348,10 +348,20 @@ text_element_t * ore_text_element (text_t *text, const size_t index, const Rbool
 #endif
             ptr += bytes_read;
             
-            if (incremental)
-                element->incomplete = (bytes_read == buffer_size);
-            if (incremental || bytes_read < buffer_size)
+            const Rboolean done = bytes_read < buffer_size;
+            if (done)
+            {
+                // Append a nul so that string functions will not continue beyond EOF
+                // There will always be space since the number of bytes read is strictly less than the buffer size
+                *ptr = '\0';
+                ptr++;
                 break;
+            }
+            else if (incremental)
+            {
+                element->incomplete = !done;
+                break;
+            }
             else
             {
                 // NB: Any pointer arithmetic must happen before the buffer is reallocated

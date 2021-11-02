@@ -104,9 +104,9 @@ static backref_info_t * ore_find_backrefs (const char *replacement, regex_t *reg
                 int *numbers;
                 const int n_matched = onig_name_to_group_numbers(regex, (const UChar *) name, (const UChar *) name + strlen(name), &numbers);
                 
-                // If it's not found, raise an error
+                // If it's not found, store the error code
                 if (n_matched == ONIGERR_UNDEFINED_NAME_REFERENCE)
-                    error("Back-reference does not match a named group");
+                    info->group_numbers[l] = ONIGERR_UNDEFINED_NAME_REFERENCE;
                 else if (n_matched > 0)
                     info->group_numbers[l] = *numbers;
                 
@@ -136,7 +136,10 @@ SEXP ore_substitute_all (SEXP regex_, SEXP replacement_, SEXP text_, SEXP all_, 
     
     const int start_len = length(start_);
     if (start_len < 1)
+    {
+        ore_free(regex, regex_);
         error("The vector of starting positions is empty");
+    }
     
     const char nul = '\0';
     
@@ -147,7 +150,10 @@ SEXP ore_substitute_all (SEXP regex_, SEXP replacement_, SEXP text_, SEXP all_, 
     {
         replacement_len = length(replacement_);
         if (replacement_len < 1)
+        {
+            ore_free(regex, regex_);
             error("No replacement has been given");
+        }
         
         backref_info = (backref_info_t **) R_alloc(replacement_len, sizeof(backref_info_t *));
         for (int j=0; j<replacement_len; j++)
@@ -158,7 +164,15 @@ SEXP ore_substitute_all (SEXP regex_, SEXP replacement_, SEXP text_, SEXP all_, 
                 for (int k=0; k<backref_info[j]->n; k++)
                 {
                     if (backref_info[j]->group_numbers[k] > n_groups)
+                    {
+                        ore_free(regex, regex_);
                         error("Replacement %d references a group number (%d) that isn't captured", j+1, backref_info[j]->group_numbers[k]);
+                    }
+                    else if (backref_info[j]->group_numbers[k] == ONIGERR_UNDEFINED_NAME_REFERENCE)
+                    {
+                        ore_free(regex, regex_);
+                        error("Replacement %d references an undefined group name", j+1);
+                    }
                 }
             }
         }
@@ -269,6 +283,7 @@ SEXP ore_substitute_all (SEXP regex_, SEXP replacement_, SEXP text_, SEXP all_, 
     if (text->source == VECTOR_SOURCE)
         setAttrib(results, R_NamesSymbol, getAttrib(text->object,R_NamesSymbol));
     
+    ore_free(regex, regex_);
     ore_text_done(text);
     
     UNPROTECT(1);
@@ -292,7 +307,10 @@ SEXP ore_replace_all (SEXP regex_, SEXP replacement_, SEXP text_, SEXP all_, SEX
     
     const int start_len = length(start_);
     if (start_len < 1)
+    {
+        ore_free(regex, regex_);
         error("The vector of starting positions is empty");
+    }
     
     const char nul = '\0';
     
@@ -303,7 +321,10 @@ SEXP ore_replace_all (SEXP regex_, SEXP replacement_, SEXP text_, SEXP all_, SEX
     {
         base_replacement_len = length(replacement_);
         if (base_replacement_len < 1)
+        {
+            ore_free(regex, regex_);
             error("No replacement has been given");
+        }
         
         backref_info = (backref_info_t **) R_alloc(base_replacement_len, sizeof(backref_info_t *));
         for (int j=0; j<base_replacement_len; j++)
@@ -314,7 +335,15 @@ SEXP ore_replace_all (SEXP regex_, SEXP replacement_, SEXP text_, SEXP all_, SEX
                 for (int k=0; k<backref_info[j]->n; k++)
                 {
                     if (backref_info[j]->group_numbers[k] > n_groups)
+                    {
+                        ore_free(regex, regex_);
                         error("Replacement %d references a group number (%d) that isn't captured", j+1, backref_info[j]->group_numbers[k]);
+                    }
+                    else if (backref_info[j]->group_numbers[k] == ONIGERR_UNDEFINED_NAME_REFERENCE)
+                    {
+                        ore_free(regex, regex_);
+                        error("Replacement %d references an undefined group name", j+1);
+                    }
                 }
             }
         }
@@ -446,6 +475,7 @@ SEXP ore_replace_all (SEXP regex_, SEXP replacement_, SEXP text_, SEXP all_, SEX
     if (text->source == VECTOR_SOURCE)
         setAttrib(results, R_NamesSymbol, getAttrib(text->object,R_NamesSymbol));
     
+    ore_free(regex, regex_);
     ore_text_done(text);
     
     UNPROTECT(1);
@@ -465,7 +495,7 @@ SEXP ore_switch_all (SEXP text_, SEXP mappings_, SEXP options_, SEXP encoding_na
         error("Mappings should be character strings");
     
     text_t *text = ore_text(text_);
-    SEXP patterns = getAttrib(mappings_, R_NamesSymbol);
+    SEXP patterns = PROTECT(getAttrib(mappings_, R_NamesSymbol));
     const char *options = CHAR(STRING_ELT(options_, 0));
     const char *encoding_name = CHAR(STRING_ELT(encoding_name_, 0));
     
@@ -503,7 +533,15 @@ SEXP ore_switch_all (SEXP text_, SEXP mappings_, SEXP options_, SEXP encoding_na
                 for (int k=0; k<backref_info->n; k++)
                 {
                     if (backref_info->group_numbers[k] > n_groups)
+                    {
+                        ore_free(regex, NULL);
                         error("Template %d references a group number (%d) that isn't captured", j+1, backref_info->group_numbers[k]);
+                    }
+                    else if (backref_info->group_numbers[k] == ONIGERR_UNDEFINED_NAME_REFERENCE)
+                    {
+                        ore_free(regex, NULL);
+                        error("Template %d references an undefined group name", j+1);
+                    }
                 }
             }
         }
@@ -550,6 +588,8 @@ SEXP ore_switch_all (SEXP text_, SEXP mappings_, SEXP options_, SEXP encoding_na
                 done[i] = TRUE;
             }
         }
+        
+        ore_free(regex, NULL);
     }
     
     if (text->source == VECTOR_SOURCE)
@@ -557,6 +597,6 @@ SEXP ore_switch_all (SEXP text_, SEXP mappings_, SEXP options_, SEXP encoding_na
     
     ore_text_done(text);
     
-    UNPROTECT(1);
+    UNPROTECT(2);
     return results;
 }

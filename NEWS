@@ -2,6 +2,28 @@ Significant changes to the "ore" package are laid out below for each release.
 
 ===============================================================================
 
+VERSION 1.7.1.1
+
+- The `glass` dataset and connection support have been removed from the CRAN
+  build of the package because they both produce notes from `R CMD check` and
+  there is no known workaround.
+- A handful of small memory leaks have been plugged.
+
+===============================================================================
+
+VERSION 1.7.1
+
+- The `binary` argument to `ore_file()` is now stored in an attribute in its
+  return value. The `ore_search()` function additionally uses this attribute
+  to determine whether or not to set the `text` element of its return value.
+  Treating a binary file's entire contents as a string is unwise, and may
+  include embedded nuls and other problem bytes.
+- A minor tweak has been made to the `es()` function, which appreciably
+  improves its performance in simple cases.
+- A potential buffer overrun and protection bug have both been corrected.
+
+===============================================================================
+
 VERSION 1.7.0
 
 - The Onigmo library has been updated to version 6.2.0.
