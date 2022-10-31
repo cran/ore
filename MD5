@@ -1,7 +1,7 @@
-e9d6c37a030cf8d8b14b2581aea45eae *DESCRIPTION
+0b98f9ea36844bd1edb1bdc2df4a741f *DESCRIPTION
 b836f7cb04510360aee66dd8dd92981b *LICENCE
 90a2ac7152e11498aa9ac49b6bbd9821 *NAMESPACE
-399162aca80b5d6912c00f4dc0391a97 *NEWS
+4f01ba6cc631da54524de293f2f89a09 *NEWS
 bcf77644eea2f9fc65fa33c4f81c4a5b *R/dict.R
 39826cc699ea57f05b8fd015ed2292c3 *R/es.R
 c83fdb1e10bf877f1c452a28f61e63c6 *R/file.R
@@ -9,7 +9,7 @@ da22dc6ab01aa4725b7e8a193fc16791 *R/match.R
 b16e299b07669646341b6f8ae2513e49 *R/ore.R
 314a69b410e050f45e8daca401e1bd6a *R/workspace.R
 1c4ec99065b5306753fa383b5d2e6526 *R/zzz.R
-a14ed72ae9c68b5ed010cfc7888f82f4 *README.md
+c598d7743c39efa0ac9652f605488beb *README.md
 20281407f3ed78ae12f18bbba0fda34e *cleanup
 8a3cb98619cdd5d447f9459aacb06d95 *cleanup.win
 4f4a2aa58a3d6f32f49c571920bf75ec *configure
@@ -71,7 +71,7 @@ b98aac5da8c3efc0b641c06179884401 *src/onig/enc/iso_8859_4.c
 b4d01d0ab2be17b98b76c76ca19e6298 *src/onig/enc/iso_8859_7.c
 464167a74d4427f022fdc578bdd45b3d *src/onig/enc/iso_8859_8.c
 beaee719bd2ae97a5f48548bbcf019e0 *src/onig/enc/iso_8859_9.c
-360dcfc7aaea5e35c6dd7caea731e76a *src/onig/enc/jis/props.h
+b78c6555799984f7495f69a384f2eccd *src/onig/enc/jis/props.h
 80fc136a2d1b244fcecf47d1ccb1dfa6 *src/onig/enc/jis/props.kwd
 55a279ac186464c1b57410a1bc17470c *src/onig/enc/koi8_r.c
 ef7e340e5223e2a1a61794ddae876f20 *src/onig/enc/koi8_u.c
@@ -79,7 +79,7 @@ ef7e340e5223e2a1a61794ddae876f20 *src/onig/enc/koi8_u.c
 2f295051ffa9bc96db71782a88ce7173 *src/onig/enc/shift_jis.h
 54a917d350ce46885e525c2c5d422a9a *src/onig/enc/unicode.c
 7f14be20347ed987545e83fed91bf21a *src/onig/enc/unicode/casefold.h
-d9afe1530e005fd7335955f8645d6a31 *src/onig/enc/unicode/name2ctype.h
+910eb75cb56c31fe6b5b556fb5f22d4d *src/onig/enc/unicode/name2ctype.h
 662496550f5f5ed200279bf990749997 *src/onig/enc/us_ascii.c
 9e1f49893c7132591a6833a42fa64341 *src/onig/enc/utf_16be.c
 19b8dd9f17a2e5fc395187578120374b *src/onig/enc/utf_16le.c
@@ -104,15 +104,15 @@ d3910c3f95328560bb498422fcfc9637 *src/onig/onigmoposix.h
 6b43e450a934b664b0ab9bf3abeefca4 *src/onig/regext.c
 c2f8bd3c078f68a65b5717e3e29c9c3c *src/onig/reggnu.c
 4e7e0eec006f20bbefe631ad44bb7e71 *src/onig/regint.h
-fd25bd0aaf14105af1d4349bf8b69154 *src/onig/regparse.c
+03ce309a8eb3db8e2915200ac0959972 *src/onig/regparse.c
 522a5f26704975d3402e7fecc240dacf *src/onig/regparse.h
 eeff029abc1b8e1c5b04b0b0428b258b *src/onig/regposerr.c
 4065faed448da9f09e31bf9c2f1b80cd *src/onig/regposix.c
 6ef4a23e2f7ae162f36d3dc17e59bd35 *src/onig/regsyntax.c
 b6d2e7518f63a8a728508b64337c1987 *src/onig/regtrav.c
 4d4f735047af139e9e15763b09f20614 *src/onig/regversion.c
-2dd6c00edf4a57eaeb66a14b56560017 *src/onig/st.c
-81625c63feaffe6822d6647245ee2634 *src/onig/st.h
+23b9b909c3462b7d27bad95051553765 *src/onig/st.c
+228e3d920223ea2cd5a7a25fbe58e1f6 *src/onig/st.h
 8dd4a27369ad597ffff9ae93df4886b8 *src/print.c
 fac84e714ad68ecd9c928ca528464a8e *src/print.h
 b4080fd69907346baeb1a61253d155f1 *src/split.c
@@ -123,6 +123,6 @@ c68cc09e06c7851bd9125395a6ef1601 *src/text.c
 cdebd8d6b29d95e1a7c4900a19323f05 *src/text.h
 7c471eed69d375dde34b47dbb9e606dc *src/wcwidth.c
 70bd12156328b9c8f3f2e0ea5101e30d *src/wcwidth.h
-9b454b7e6df782e532063b0ffb165a9a *src/zzz.c
-47cf26763b1e173bc0c20a06f0629129 *src/zzz.h
+27c22b200a84f49c77d44bcd9d04e279 *src/zzz.c
+0d6f3d24ddd67e03fd0cab936b369770 *src/zzz.h
 5e25f65813188e1846993b88fd16a21a *tests/tinytest.R
