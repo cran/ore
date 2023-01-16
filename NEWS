@@ -2,6 +2,23 @@ Significant changes to the "ore" package are laid out below for each release.
 
 ===============================================================================
 
+VERSION 1.7.3.1
+
+- A potential mismatch between the C compiler configured for R and the one used
+  by the configure script has been resolved.
+- A modulus of very large match numbers is now used when printing, rather than
+  nothing. This has the side-effect of silencing a warning.
+
+===============================================================================
+
+VERSION 1.7.3
+
+- The package will now properly detect a plain locale like "UTF-8" on start-up.
+- C prototype warnings have been resolved, and the problematic `sprintf()`
+  function is now avoided.
+
+===============================================================================
+
 VERSION 1.7.2.1
 
 - C prototype-related warnings have been resolved, as required for CRAN. In
